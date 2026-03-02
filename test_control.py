@@ -40,6 +40,10 @@ class TestControlFrame(ttk.Frame):
         self.skip_item_requested = False # 标志：用户是否请求跳过当前测试项
         self.current_test_thread = None # 当前运行测试逻辑的后台线程
         
+        # --- 多键测试专用变量 ---
+        self.multi_key_pause_pending = False  # 标志：多键测试暂停请求（用于区分普通暂停）
+        self.multi_key_test_active = False    # 标志：是否正在执行多键测试
+        
         # --- 电机位置跟踪变量 ---
         self.current_x_pulse = 0        # X 轴当前脉冲位置
         self.current_y_pulse = 0        # Y 轴当前脉冲位置
@@ -202,20 +206,47 @@ class TestControlFrame(ttk.Frame):
             self.current_item_index = i
             item = self.test_flow[i]
             key_name = item['key_name']
+            is_multi_key = item.get('type') == 'multi'
             
             # 通知设置页刷新显示（更新正在测试/已完成状态）
             if hasattr(self.settings_source, 'render_test_flow'):
                 self.lbl_remaining.after(0, self.settings_source.render_test_flow)
             
-            self.log(f"Testing item {i+1}/{len(self.test_flow)}: {key_name}", "TEST")
+            self.log(f"Testing item {i+1}/{len(self.test_flow)}: {key_name} ({'Multi-Key' if is_multi_key else 'Single Key'})", "TEST")
             
             # 1. 移动电机到指定位置
-            binding = binding_dict.get(key_name)
-            if binding:
-                x_pulse = binding.get('x_pulse', 0)
-                y_pulse = binding.get('y_pulse', 0)
-                
-                self.log(f"Moving to {key_name} (X:{x_pulse}, Y:{y_pulse})", "MOT")
+            if is_multi_key:
+                # 多键测试：计算两个按键的中点坐标
+                key_names = item.get('key_names', [])
+                if len(key_names) >= 2:
+                    binding1 = binding_dict.get(key_names[0])
+                    binding2 = binding_dict.get(key_names[1])
+                    if binding1 and binding2:
+                        x1, y1 = binding1.get('x_pulse', 0), binding1.get('y_pulse', 0)
+                        x2, y2 = binding2.get('x_pulse', 0), binding2.get('y_pulse', 0)
+                        # 计算中点坐标（正确处理负数坐标，使用round进行四舍五入）
+                        x_pulse = round((x1 + x2) / 2)
+                        y_pulse = round((y1 + y2) / 2)
+                        self.log(f"Multi-key center position: ({x_pulse}, {y_pulse}) from ({key_names[0]}: {x1},{y1}) and ({key_names[1]}: {x2},{y2})", "MOT")
+                    else:
+                        self.log(f"Warning: Missing binding for multi-key test", "WRN")
+                        x_pulse, y_pulse = 0, 0
+                else:
+                    self.log(f"Warning: Invalid multi-key configuration", "WRN")
+                    x_pulse, y_pulse = 0, 0
+            else:
+                # 单键测试：直接获取按键坐标
+                binding = binding_dict.get(key_name)
+                if binding:
+                    x_pulse = binding.get('x_pulse', 0)
+                    y_pulse = binding.get('y_pulse', 0)
+                else:
+                    self.log(f"Warning: No binding found for {key_name}", "WRN")
+                    x_pulse, y_pulse = 0, 0
+            
+            # 移动电机到目标位置
+            if x_pulse != 0 or y_pulse != 0:
+                self.log(f"Moving to position (X:{x_pulse}, Y:{y_pulse})", "MOT")
                 self.send_motor_pulse(motor_x_conn, x_pulse, "X")
                 self.send_motor_pulse(motor_y_conn, y_pulse, "Y")
                 
@@ -224,15 +255,38 @@ class TestControlFrame(ttk.Frame):
                 for _ in range(20): # 2秒，每100ms检查一次
                     if self.stop_requested or self.skip_item_requested: break
                     time.sleep(0.1)
-            else:
-                self.log(f"Warning: No binding found for {key_name}", "WRN")
 
             if self.stop_requested: break
             if self.skip_item_requested:
                 self.skip_item_requested = False
                 continue
 
-            # 2. 初始化该项的剩余值
+            # 2. 多键测试：移动到位置后自动暂停，等待用户手动操作
+            if is_multi_key:
+                self.multi_key_test_active = True
+                self.multi_key_pause_pending = True
+                self.log("Multi-key test: Auto-paused. Please press the keys manually, then click 'Resume' to continue.", "TEST")
+                
+                # 在UI线程中更新暂停状态
+                self.lbl_remaining.after(0, lambda: self.update_ui_state("PAUSED"))
+                
+                # 等待用户继续
+                while self.multi_key_pause_pending and not self.stop_requested and not self.skip_item_requested:
+                    time.sleep(0.1)
+                
+                self.multi_key_test_active = False
+                self.multi_key_pause_pending = False
+                
+                if self.stop_requested: break
+                if self.skip_item_requested:
+                    self.skip_item_requested = False
+                    continue
+                
+                # 用户继续后，继续执行后续的继电器测试逻辑
+                self.lbl_remaining.after(0, lambda: self.update_ui_state("TESTING"))
+                self.log("Multi-key test: Resumed, starting relay test cycle.", "TEST")
+
+            # 3. 初始化该项的剩余值
             mode = item.get('mode')
             target = item.get('target', 0)
             
@@ -250,11 +304,11 @@ class TestControlFrame(ttk.Frame):
                 self.remaining_counts = target
                 self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
 
-            # 3. 执行单项测试循环
+            # 4. 执行单项测试循环
             while self.is_running:
                 if self.stop_requested or self.skip_item_requested: break
                 
-                # 检查暂停
+                # 检查暂停（普通暂停）
                 if self.pause_requested:
                     self.is_paused = True
                     while self.pause_requested and not self.stop_requested:
@@ -291,6 +345,8 @@ class TestControlFrame(ttk.Frame):
 
         # 收尾
         self.is_running = False
+        self.multi_key_test_active = False
+        self.multi_key_pause_pending = False
         self.current_item_index = len(self.test_flow) # 全部标记为已完成
         if hasattr(self.settings_source, 'render_test_flow'):
             self.lbl_remaining.after(0, self.settings_source.render_test_flow)
@@ -480,12 +536,20 @@ class TestControlFrame(ttk.Frame):
 
     def resume_test(self):
         """恢复测试按钮的回调。清除请求标志并重启 UI 定时器（如果需要）。"""
-        self.pause_requested = False # 解除后台线程的阻塞
-        settings = self.settings_source.get_current_state()
-        if settings.get('test_mode') == 'time':
-            self.run_timer()
+        # 检查是否是多键测试暂停
+        if self.multi_key_pause_pending:
+            self.multi_key_pause_pending = False  # 解除多键测试暂停
+            self.log("Multi-key test resumed by user", "TEST")
+            # 注意：多键测试的继续逻辑在 run_test_cycle 中处理
+        else:
+            # 普通暂停恢复
+            self.pause_requested = False # 解除后台线程的阻塞
+            settings = self.settings_source.get_current_state()
+            if settings.get('test_mode') == 'time':
+                self.run_timer_async()
+            self.log("Test Resumed", "TEST")
+        
         self.update_ui_state("TESTING")
-        self.log("Test Resumed", "TEST")
 
     def stop_test(self):
         """

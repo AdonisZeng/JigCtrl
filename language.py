@@ -122,6 +122,10 @@ class LanguageManager:
             "settings_single_key_label": {"zh": "单键", "en": "Single Key"},
             "settings_multi_key_label": {"zh": "多键", "en": "Multi-Key"},
             "settings_delete_item": {"zh": "删除项目", "en": "Delete Item"},
+            "settings_key1": {"zh": "按键1", "en": "Key 1"},
+            "settings_key2": {"zh": "按键2", "en": "Key 2"},
+            "error_multi_key_exists": {"zh": "测试流程中已有多键测试项，不能再添加其他测试项", "en": "Multi-key test item already exists, cannot add other items"},
+            "error_cannot_add_multi_key": {"zh": "测试流程中已有其他测试项，不能再添加多键测试项", "en": "Other test items exist, cannot add multi-key item"},
             
             # === 测试控制页面 ===
             "test_title": {"zh": "测试控制", "en": "Test Control"},

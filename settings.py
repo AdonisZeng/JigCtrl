@@ -15,12 +15,13 @@ class TestItemSettingsWindow(tk.Toplevel):
     """
     TestItemSettingsWindow 类：新增测试项时的设置窗口。
     """
-    def __init__(self, parent, callback):
+    def __init__(self, parent, callback, is_multi_key_only=False):
         super().__init__(parent)
         self.title("Add Test Item")
-        self.geometry("420x350")
+        self.geometry("420x400")
         self.callback = callback
         self.key_manager = KeyManager()
+        self.is_multi_key_only = is_multi_key_only  # 标记是否只能添加多键测试
         
         # 设置窗口背景色
         self.configure(bg="#f3f2f1")
@@ -36,62 +37,106 @@ class TestItemSettingsWindow(tk.Toplevel):
         self.type_var = tk.StringVar(value="single")
         type_frame = ttk.Frame(main_frame)
         type_frame.grid(row=0, column=1, sticky=tk.W, pady=8)
-        ttk.Radiobutton(type_frame, text=tr("settings_single_key"), variable=self.type_var, value="single").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(type_frame, text=tr("settings_multi_key"), variable=self.type_var, value="multi").pack(side=tk.LEFT, padx=5)
+        self.single_radio = ttk.Radiobutton(type_frame, text=tr("settings_single_key"), variable=self.type_var, value="single", command=self.on_type_change)
+        self.single_radio.pack(side=tk.LEFT, padx=5)
+        self.multi_radio = ttk.Radiobutton(type_frame, text=tr("settings_multi_key"), variable=self.type_var, value="multi", command=self.on_type_change)
+        self.multi_radio.pack(side=tk.LEFT, padx=5)
 
-        # 2. 选择按键
-        ttk.Label(main_frame, text=tr("settings_select_key"), font=("Cambria", 9, "bold")).grid(row=1, column=0, sticky=tk.W, pady=8)
-        self.key_var = tk.StringVar()
+        # 2. 选择按键1
+        self.key1_label = ttk.Label(main_frame, text=tr("settings_key1"), font=("Cambria", 9, "bold"))
+        self.key1_label.grid(row=1, column=0, sticky=tk.W, pady=8)
+        self.key1_var = tk.StringVar()
         bindings = self.key_manager.get_bindings()
         key_names = [b['key_name'] for b in bindings]
-        self.key_combo = ttk.Combobox(main_frame, textvariable=self.key_var, values=key_names, state="readonly")
-        self.key_combo.grid(row=1, column=1, sticky=tk.EW, pady=8)
+        self.key1_combo = ttk.Combobox(main_frame, textvariable=self.key1_var, values=key_names, state="readonly")
+        self.key1_combo.grid(row=1, column=1, sticky=tk.EW, pady=8)
         if key_names:
-            self.key_combo.current(0)
+            self.key1_combo.current(0)
+        
+        # 3. 选择按键2（多键时显示）
+        self.key2_label = ttk.Label(main_frame, text=tr("settings_key2"), font=("Cambria", 9, "bold"))
+        self.key2_var = tk.StringVar()
+        self.key2_combo = ttk.Combobox(main_frame, textvariable=self.key2_var, values=key_names, state="readonly")
+        if key_names:
+            self.key2_combo.current(0) if len(key_names) > 1 else self.key2_combo.current(0)
             
-        # 3. 测试模式
-        ttk.Label(main_frame, text=tr("settings_test_mode"), font=("Cambria", 9, "bold")).grid(row=2, column=0, sticky=tk.W, pady=8)
+        # 4. 测试模式
+        ttk.Label(main_frame, text=tr("settings_test_mode"), font=("Cambria", 9, "bold")).grid(row=3, column=0, sticky=tk.W, pady=8)
         self.mode_var = tk.StringVar(value="count")
         mode_frame = ttk.Frame(main_frame)
-        mode_frame.grid(row=2, column=1, sticky=tk.W, pady=8)
+        mode_frame.grid(row=3, column=1, sticky=tk.W, pady=8)
         ttk.Radiobutton(mode_frame, text=tr("settings_count"), variable=self.mode_var, value="count", command=self.on_mode_change).pack(side=tk.LEFT, padx=5)
         ttk.Radiobutton(mode_frame, text=tr("settings_time"), variable=self.mode_var, value="time", command=self.on_mode_change).pack(side=tk.LEFT, padx=5)
         
-        # 4. 目标数值
-        ttk.Label(main_frame, text=tr("settings_target_value"), font=("Cambria", 9, "bold")).grid(row=3, column=0, sticky=tk.W, pady=8)
+        # 5. 目标数值
+        ttk.Label(main_frame, text=tr("settings_target_value"), font=("Cambria", 9, "bold")).grid(row=4, column=0, sticky=tk.W, pady=8)
         self.target_var = tk.IntVar(value=100)
         self.target_entry = ttk.Entry(main_frame, textvariable=self.target_var)
-        self.target_entry.grid(row=3, column=1, sticky=tk.EW, pady=8)
+        self.target_entry.grid(row=4, column=1, sticky=tk.EW, pady=8)
         
-        # 5. 时间单位
+        # 6. 时间单位
         self.unit_label = ttk.Label(main_frame, text=tr("settings_unit"), font=("Cambria", 9, "bold"))
         self.unit_var = tk.StringVar(value="Seconds")
         self.unit_combo = ttk.Combobox(main_frame, textvariable=self.unit_var, values=["Seconds", "Minutes", "Hours"], state="readonly")
         
-        # 6. 按钮
+        # 7. 按钮
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=5, column=0, columnspan=2, pady=25)
+        btn_frame.grid(row=6, column=0, columnspan=2, pady=25)
         ttk.Button(btn_frame, text=tr("settings_ok"), style="Primary.TButton", width=12, command=self.on_ok).pack(side=tk.LEFT, padx=10)
         ttk.Button(btn_frame, text=tr("settings_cancel"), width=12, command=self.destroy).pack(side=tk.LEFT, padx=10)
         
+        # 根据 is_multi_key_only 设置初始状态
+        if self.is_multi_key_only:
+            self.type_var.set("multi")
+            self.single_radio.config(state=tk.DISABLED)
+        
+        self.on_type_change()
         self.on_mode_change()
         
+    def on_type_change(self):
+        """测试类型切换时的UI响应"""
+        if self.type_var.get() == "multi":
+            # 显示按键2选择
+            self.key2_label.grid(row=2, column=0, sticky=tk.W, pady=8)
+            self.key2_combo.grid(row=2, column=1, sticky=tk.EW, pady=8)
+        else:
+            # 隐藏按键2选择
+            self.key2_label.grid_remove()
+            self.key2_combo.grid_remove()
+            
     def on_mode_change(self):
         if self.mode_var.get() == "time":
-            self.unit_label.grid(row=4, column=0, sticky=tk.W, pady=5)
-            self.unit_combo.grid(row=4, column=1, sticky=tk.EW, pady=5)
+            self.unit_label.grid(row=5, column=0, sticky=tk.W, pady=5)
+            self.unit_combo.grid(row=5, column=1, sticky=tk.EW, pady=5)
         else:
             self.unit_label.grid_remove()
             self.unit_combo.grid_remove()
             
     def on_ok(self):
-        key_name = self.key_var.get()
-        if not key_name:
-            return
+        test_type = self.type_var.get()
+        
+        if test_type == "multi":
+            # 多键测试
+            key1 = self.key1_var.get()
+            key2 = self.key2_var.get()
+            if not key1 or not key2:
+                return
+            if key1 == key2:
+                messagebox.showerror(tr("error"), "Two different keys must be selected for multi-key test")
+                return
+            key_name = f"{key1}+{key2}"
+            key_names = [key1, key2]
+        else:
+            # 单键测试
+            key_name = self.key1_var.get()
+            if not key_name:
+                return
+            key_names = [key_name]
             
         test_item = {
-            "type": self.type_var.get(),
+            "type": test_type,
             "key_name": key_name,
+            "key_names": key_names,
             "mode": self.mode_var.get(),
             "target": self.target_var.get(),
             "unit": self.unit_var.get() if self.mode_var.get() == "time" else ""
@@ -430,12 +475,41 @@ class SettingsFrame(ttk.Frame):
         self.btn_apply = ttk.Button(self, text=tr("settings_apply"), style="Primary.TButton", command=self.apply_changes, state=tk.DISABLED)
         self.btn_apply.pack(side=tk.BOTTOM, pady=(10, 0), anchor=tk.E)
 
+    def has_multi_key_item(self):
+        """检查测试流程中是否已有多键测试项"""
+        for item in self.test_flow:
+            if item.get('type') == 'multi':
+                return True
+        return False
+
+    def has_any_item(self):
+        """检查测试流程中是否有任何测试项"""
+        return len(self.test_flow) > 0
+
     def open_add_test_item_window(self):
         """打开新增测试项窗口"""
-        TestItemSettingsWindow(self, self.add_test_item)
+        # 检查约束条件
+        if self.has_multi_key_item():
+            # 已有多键测试项，不能再添加其他测试项
+            messagebox.showerror(tr("error"), tr("error_multi_key_exists"))
+            return
+        
+        # 如果已有其他测试项，则只能添加多键测试项
+        is_multi_key_only = self.has_any_item()
+        
+        TestItemSettingsWindow(self, self.add_test_item, is_multi_key_only)
 
     def add_test_item(self, item):
         """回调函数：添加测试项到流程"""
+        # 再次检查约束条件（防止并发情况）
+        if item.get('type') != 'multi' and self.has_multi_key_item():
+            messagebox.showerror(tr("error"), tr("error_multi_key_exists"))
+            return
+        
+        if item.get('type') == 'multi' and self.has_any_item():
+            messagebox.showerror(tr("error"), tr("error_cannot_add_multi_key"))
+            return
+        
         self.test_flow.append(item)
         self.render_test_flow()
         self.check_changes()

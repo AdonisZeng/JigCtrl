@@ -208,3 +208,9 @@ __marimo__/
 
 # JigCtrl configuration files
 config/jigctrl_config.json
+
+# Trae
+.trae/
+
+# uploads
+uploads/
