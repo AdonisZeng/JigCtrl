@@ -142,6 +142,7 @@ class JigCtrlApp(tk.Tk):
 
         # 相互引用
         self.tab_settings.test_control = self.tab_test
+        self.tab_test.motion_control = self.tab_motion
 
         # 5. 电机命令调试页签
         self.tab_motor_debug = MotorDebugFrame(self.notebook, log_callback=self.tab_log.add_log)
@@ -206,10 +207,12 @@ class JigCtrlApp(tk.Tk):
             self.status_bar.set_status("Configuration saved", 2000)
 
     def on_motor_connected(self):
-        """电机串口连接成功后的回调，刷新位置显示"""
+        """电机串口连接成功后的回调，刷新位置显示并获取回原点速度"""
         if hasattr(self, 'tab_motion'):
             # 延迟 200ms 后刷新位置，等待串口稳定
             self.after(200, self.tab_motion.refresh_positions)
+            # 延迟 300ms 后获取回原点速度
+            self.after(300, self.tab_motion.on_get_homing_speed)
 
     def on_refresh(self):
         """刷新状态快捷键"""

@@ -15,13 +15,14 @@ class TestItemSettingsWindow(tk.Toplevel):
     """
     TestItemSettingsWindow 类：新增测试项时的设置窗口。
     """
-    def __init__(self, parent, callback, is_multi_key_only=False):
+    def __init__(self, parent, callback, is_multi_key_only=False, is_single_key_only=False):
         super().__init__(parent)
         self.title("Add Test Item")
         self.geometry("420x400")
         self.callback = callback
         self.key_manager = KeyManager()
         self.is_multi_key_only = is_multi_key_only  # 标记是否只能添加多键测试
+        self.is_single_key_only = is_single_key_only  # 标记是否只能添加单键测试
         
         # 设置窗口背景色
         self.configure(bg="#f3f2f1")
@@ -85,10 +86,13 @@ class TestItemSettingsWindow(tk.Toplevel):
         ttk.Button(btn_frame, text=tr("settings_ok"), style="Primary.TButton", width=12, command=self.on_ok).pack(side=tk.LEFT, padx=10)
         ttk.Button(btn_frame, text=tr("settings_cancel"), width=12, command=self.destroy).pack(side=tk.LEFT, padx=10)
         
-        # 根据 is_multi_key_only 设置初始状态
+        # 根据 is_multi_key_only 和 is_single_key_only 设置初始状态
         if self.is_multi_key_only:
             self.type_var.set("multi")
             self.single_radio.config(state=tk.DISABLED)
+        elif self.is_single_key_only:
+            self.type_var.set("single")
+            self.multi_radio.config(state=tk.DISABLED)
         
         self.on_type_change()
         self.on_mode_change()
@@ -364,6 +368,11 @@ class SettingsFrame(ttk.Frame):
         self.history_manager = HistoryManager() # 初始化历史管理器
         self.on_motor_connect_callback = on_motor_connect_callback # 电机连接成功回调
         
+        # 循环测试相关变量
+        self.vars['loop_enabled'] = tk.BooleanVar(value=False)  # 循环测试开关状态
+        self.vars['loop_count'] = tk.IntVar(value=1)  # 循环次数
+        self.loop_locked = False  # 锁定状态
+        
         self.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # 创建界面组件
@@ -455,6 +464,23 @@ class SettingsFrame(ttk.Frame):
         self.btn_clear = ttk.Button(ctrl_frame, text=tr("settings_clear_all"), style="Danger.TButton", command=self.clear_test_flow)
         self.btn_clear.pack(side=tk.LEFT, padx=5)
         
+        # 循环测试开关
+        self.loop_check = ttk.Checkbutton(ctrl_frame, text=tr("settings_loop_test"), variable=self.vars['loop_enabled'], command=self.on_loop_enabled_change)
+        self.loop_check.pack(side=tk.LEFT, padx=5)
+        
+        # 循环次数输入框和锁定按钮（初始隐藏）
+        self.loop_count_frame = ttk.Frame(ctrl_frame)
+        # 不pack，初始隐藏
+        
+        self.loop_count_label = ttk.Label(self.loop_count_frame, text=tr("settings_loop_count"))
+        self.loop_count_label.pack(side=tk.LEFT, padx=(10, 5))
+        
+        self.loop_count_entry = ttk.Entry(self.loop_count_frame, textvariable=self.vars['loop_count'], width=8)
+        self.loop_count_entry.pack(side=tk.LEFT, padx=5)
+        
+        self.btn_loop_lock = ttk.Button(self.loop_count_frame, text=tr("settings_lock"), command=self.toggle_loop_lock)
+        self.btn_loop_lock.pack(side=tk.LEFT, padx=5)
+        
         self.btn_next = ttk.Button(ctrl_frame, text=tr("settings_next_item"), command=self.skip_to_next_item, state=tk.DISABLED)
         self.btn_next.pack(side=tk.RIGHT, padx=5)
 
@@ -482,6 +508,13 @@ class SettingsFrame(ttk.Frame):
                 return True
         return False
 
+    def has_single_key_item(self):
+        """检查测试流程中是否已有单键测试项"""
+        for item in self.test_flow:
+            if item.get('type') == 'single':
+                return True
+        return False
+
     def has_any_item(self):
         """检查测试流程中是否有任何测试项"""
         return len(self.test_flow) > 0
@@ -490,24 +523,28 @@ class SettingsFrame(ttk.Frame):
         """打开新增测试项窗口"""
         # 检查约束条件
         if self.has_multi_key_item():
-            # 已有多键测试项，不能再添加其他测试项
+            # 已有多键测试项，不能再添加任何测试项
             messagebox.showerror(tr("error"), tr("error_multi_key_exists"))
             return
         
-        # 如果已有其他测试项，则只能添加多键测试项
-        is_multi_key_only = self.has_any_item()
+        # 如果已有单键测试项，则只能添加单键测试项
+        is_single_key_only = self.has_single_key_item()
+        # 如果测试流程为空，可以选择单键或多键
+        is_multi_key_only = False
         
-        TestItemSettingsWindow(self, self.add_test_item, is_multi_key_only)
+        TestItemSettingsWindow(self, self.add_test_item, is_multi_key_only, is_single_key_only)
 
     def add_test_item(self, item):
         """回调函数：添加测试项到流程"""
         # 再次检查约束条件（防止并发情况）
-        if item.get('type') != 'multi' and self.has_multi_key_item():
-            messagebox.showerror(tr("error"), tr("error_multi_key_exists"))
+        if item.get('type') == 'multi' and self.has_any_item():
+            # 已有其他测试项，不能添加多键测试项
+            messagebox.showerror(tr("error"), tr("error_cannot_add_multi_key"))
             return
         
-        if item.get('type') == 'multi' and self.has_any_item():
-            messagebox.showerror(tr("error"), tr("error_cannot_add_multi_key"))
+        if item.get('type') == 'single' and self.has_multi_key_item():
+            # 已有多键测试项，不能添加单键测试项
+            messagebox.showerror(tr("error"), tr("error_multi_key_exists"))
             return
         
         self.test_flow.append(item)
@@ -613,6 +650,60 @@ class SettingsFrame(ttk.Frame):
         if self.test_control:
             self.test_control.skip_to_next()
 
+    def on_loop_enabled_change(self):
+        """
+        循环测试开关状态切换时的处理。
+        开启时显示输入框和锁定按钮，关闭时隐藏并解锁。
+        """
+        if self.vars['loop_enabled'].get():
+            # 显示循环次数输入框和锁定按钮
+            self.loop_count_frame.pack(side=tk.LEFT, padx=5)
+        else:
+            # 隐藏并解锁
+            self.loop_count_frame.pack_forget()
+            self.unlock_loop_count()
+
+    def toggle_loop_lock(self):
+        """
+        切换锁定/解锁状态。
+        锁定时验证输入是否为有效正整数。
+        """
+        if self.loop_locked:
+            # 解锁
+            self.unlock_loop_count()
+        else:
+            # 锁定前验证输入
+            if self.validate_loop_count():
+                self.lock_loop_count()
+
+    def validate_loop_count(self):
+        """
+        验证循环次数输入是否为有效正整数。
+        
+        :return: 验证通过返回 True，否则返回 False
+        """
+        try:
+            count = self.vars['loop_count'].get()
+            if count is None or count <= 0:
+                messagebox.showerror(tr("error"), tr("settings_invalid_loop_count"))
+                return False
+            return True
+        except:
+            messagebox.showerror(tr("error"), tr("settings_invalid_loop_count"))
+            return False
+
+    def lock_loop_count(self):
+        """锁定循环次数输入框"""
+        self.loop_locked = True
+        self.loop_count_entry.config(state="readonly")
+        self.btn_loop_lock.config(text=tr("settings_unlock"))
+
+    def unlock_loop_count(self):
+        """解锁循环次数输入框"""
+        self.loop_locked = False
+        self.loop_count_entry.config(state="normal")
+        self.btn_loop_lock.config(text=tr("settings_lock"))
+
     def show_context_menu(self, event, index):
         """显示右键删除菜单"""
         menu = tk.Menu(self, tearoff=0)
@@ -647,6 +738,12 @@ class SettingsFrame(ttk.Frame):
             
         # 添加测试流程配置
         state['test_flow'] = copy.deepcopy(self.test_flow)
+        
+        # 添加循环测试配置
+        state['loop_enabled'] = self.vars['loop_enabled'].get()
+        state['loop_count'] = self.vars['loop_count'].get()
+        state['loop_locked'] = self.loop_locked
+        
         return state
 
     def save_initial_state(self):
@@ -837,6 +934,20 @@ class SettingsFrame(ttk.Frame):
                 self.test_flow = config['test_flow']
                 self.render_test_flow()
 
+            # 加载循环测试配置
+            if 'loop_enabled' in config:
+                self.vars['loop_enabled'].set(config['loop_enabled'])
+            
+            if 'loop_count' in config:
+                self.vars['loop_count'].set(config['loop_count'])
+            
+            if config.get('loop_locked', False):
+                self.loop_locked = True
+                self.lock_loop_count()
+                # 如果循环测试已启用且已锁定，显示输入框
+                if config.get('loop_enabled', False):
+                    self.loop_count_frame.pack(side=tk.LEFT, padx=5)
+
             # 加载串口配置
             for title, frame in self.serial_frames.items():
                 if title in config:
@@ -888,6 +999,14 @@ class SettingsFrame(ttk.Frame):
         self.btn_clear.config(text=tr("settings_clear_all"))
         self.btn_next.config(text=tr("settings_next_item"))
         self.btn_apply.config(text=tr("settings_apply"))
+        
+        # 刷新循环测试组件
+        self.loop_check.config(text=tr("settings_loop_test"))
+        self.loop_count_label.config(text=tr("settings_loop_count"))
+        if self.loop_locked:
+            self.btn_loop_lock.config(text=tr("settings_unlock"))
+        else:
+            self.btn_loop_lock.config(text=tr("settings_lock"))
         
         # 刷新测试流程显示
         self.render_test_flow()

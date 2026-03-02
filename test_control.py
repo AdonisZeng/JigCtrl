@@ -48,6 +48,11 @@ class TestControlFrame(ttk.Frame):
         self.current_x_pulse = 0        # X 轴当前脉冲位置
         self.current_y_pulse = 0        # Y 轴当前脉冲位置
         
+        # --- 循环测试相关变量 ---
+        self.total_rounds = 1           # 总轮次
+        self.current_round = 1          # 当前轮次
+        self.loop_enabled = False       # 是否启用循环测试
+        
         self.create_widgets()
 
     # ==========================================
@@ -117,6 +122,16 @@ class TestControlFrame(ttk.Frame):
 
             self.current_item_index = 0
             
+            # 读取循环测试配置
+            loop_enabled = settings.get('loop_enabled', False)
+            loop_count = settings.get('loop_count', 1)
+            loop_locked = settings.get('loop_locked', False)
+            
+            # 只有当 loop_enabled 和 loop_locked 都为 True 时才启用循环
+            self.loop_enabled = loop_enabled and loop_locked
+            self.total_rounds = loop_count if self.loop_enabled else 1
+            self.current_round = 1
+            
             # 重置所有控制标志位
             self.is_running = True
             self.is_paused = False
@@ -157,6 +172,7 @@ class TestControlFrame(ttk.Frame):
     def run_test_cycle(self):
         """
         核心测试循环逻辑。遍历测试流程中的每一个测试项。
+        支持多轮次循环测试。
         """
         settings = self.settings_source.get_current_state()
         relay_conn = self.settings_source.get_serial_connection("Relay (Solenoid)")
@@ -199,54 +215,69 @@ class TestControlFrame(ttk.Frame):
         all_bindings = self.key_manager.get_bindings()
         binding_dict = {b['key_name']: b for b in all_bindings}
 
-        for i in range(len(self.test_flow)):
+        # --- 轮次循环 ---
+        total_rounds = self.total_rounds
+        for round_num in range(1, total_rounds + 1):
             if self.stop_requested:
                 break
             
-            self.current_item_index = i
-            item = self.test_flow[i]
-            key_name = item['key_name']
-            is_multi_key = item.get('type') == 'multi'
+            # 更新当前轮次
+            self.current_round = round_num
             
-            # 通知设置页刷新显示（更新正在测试/已完成状态）
-            if hasattr(self.settings_source, 'render_test_flow'):
-                self.lbl_remaining.after(0, self.settings_source.render_test_flow)
+            # 显示轮次信息
+            if self.loop_enabled:
+                self.log(f"{tr('test_round')} {round_num}/{total_rounds}", "TEST")
             
-            self.log(f"Testing item {i+1}/{len(self.test_flow)}: {key_name} ({'Multi-Key' if is_multi_key else 'Single Key'})", "TEST")
+            # 重置测试项索引（每轮重新开始）
+            self.current_item_index = 0
             
-            # 1. 移动电机到指定位置
-            if is_multi_key:
-                # 多键测试：计算两个按键的中点坐标
-                key_names = item.get('key_names', [])
-                if len(key_names) >= 2:
-                    binding1 = binding_dict.get(key_names[0])
-                    binding2 = binding_dict.get(key_names[1])
-                    if binding1 and binding2:
-                        x1, y1 = binding1.get('x_pulse', 0), binding1.get('y_pulse', 0)
-                        x2, y2 = binding2.get('x_pulse', 0), binding2.get('y_pulse', 0)
-                        # 计算中点坐标（正确处理负数坐标，使用round进行四舍五入）
-                        x_pulse = round((x1 + x2) / 2)
-                        y_pulse = round((y1 + y2) / 2)
-                        self.log(f"Multi-key center position: ({x_pulse}, {y_pulse}) from ({key_names[0]}: {x1},{y1}) and ({key_names[1]}: {x2},{y2})", "MOT")
+            for i in range(len(self.test_flow)):
+                if self.stop_requested:
+                    break
+                
+                self.current_item_index = i
+                item = self.test_flow[i]
+                key_name = item['key_name']
+                is_multi_key = item.get('type') == 'multi'
+                
+                # 通知设置页刷新显示（更新正在测试/已完成状态）
+                if hasattr(self.settings_source, 'render_test_flow'):
+                    self.lbl_remaining.after(0, self.settings_source.render_test_flow)
+                
+                self.log(f"Testing item {i+1}/{len(self.test_flow)}: {key_name} ({'Multi-Key' if is_multi_key else 'Single Key'})", "TEST")
+                
+                # 1. 移动电机到指定位置
+                if is_multi_key:
+                    # 多键测试：计算两个按键的中点坐标
+                    key_names = item.get('key_names', [])
+                    if len(key_names) >= 2:
+                        binding1 = binding_dict.get(key_names[0])
+                        binding2 = binding_dict.get(key_names[1])
+                        if binding1 and binding2:
+                            x1, y1 = binding1.get('x_pulse', 0), binding1.get('y_pulse', 0)
+                            x2, y2 = binding2.get('x_pulse', 0), binding2.get('y_pulse', 0)
+                            # 计算中点坐标（正确处理负数坐标，使用round进行四舍五入）
+                            x_pulse = round((x1 + x2) / 2)
+                            y_pulse = round((y1 + y2) / 2)
+                            self.log(f"Multi-key center position: ({x_pulse}, {y_pulse}) from ({key_names[0]}: {x1},{y1}) and ({key_names[1]}: {x2},{y2})", "MOT")
+                        else:
+                            self.log(f"Warning: Missing binding for multi-key test", "WRN")
+                            x_pulse, y_pulse = 0, 0
                     else:
-                        self.log(f"Warning: Missing binding for multi-key test", "WRN")
+                        self.log(f"Warning: Invalid multi-key configuration", "WRN")
                         x_pulse, y_pulse = 0, 0
                 else:
-                    self.log(f"Warning: Invalid multi-key configuration", "WRN")
-                    x_pulse, y_pulse = 0, 0
-            else:
-                # 单键测试：直接获取按键坐标
-                binding = binding_dict.get(key_name)
-                if binding:
-                    x_pulse = binding.get('x_pulse', 0)
-                    y_pulse = binding.get('y_pulse', 0)
-                else:
-                    self.log(f"Warning: No binding found for {key_name}", "WRN")
-                    x_pulse, y_pulse = 0, 0
-            
-            # 移动电机到目标位置
-            if x_pulse != 0 or y_pulse != 0:
-                self.log(f"Moving to position (X:{x_pulse}, Y:{y_pulse})", "MOT")
+                    # 单键测试：直接获取按键坐标
+                    binding = binding_dict.get(key_name)
+                    if binding:
+                        x_pulse = binding.get('x_pulse', 0)
+                        y_pulse = binding.get('y_pulse', 0)
+                    else:
+                        self.log(f"Warning: No binding found for {key_name}", "WRN")
+                        x_pulse, y_pulse = 0, 0
+                
+                # 移动电机到目标位置（send_motor_pulse 内部会检查是否需要移动）
+                self.log(f"Target position (X:{x_pulse}, Y:{y_pulse})", "MOT")
                 self.send_motor_pulse(motor_x_conn, x_pulse, "X")
                 self.send_motor_pulse(motor_y_conn, y_pulse, "Y")
                 
@@ -255,92 +286,99 @@ class TestControlFrame(ttk.Frame):
                 for _ in range(20): # 2秒，每100ms检查一次
                     if self.stop_requested or self.skip_item_requested: break
                     time.sleep(0.1)
+                
+                # 电机移动完成后刷新运动控制页面的位置显示
+                if hasattr(self, 'motion_control') and self.motion_control:
+                    self.lbl_remaining.after(0, self.motion_control.refresh_positions)
 
-            if self.stop_requested: break
-            if self.skip_item_requested:
-                self.skip_item_requested = False
-                continue
-
-            # 2. 多键测试：移动到位置后自动暂停，等待用户手动操作
-            if is_multi_key:
-                self.multi_key_test_active = True
-                self.multi_key_pause_pending = True
-                self.log("Multi-key test: Auto-paused. Please press the keys manually, then click 'Resume' to continue.", "TEST")
-                
-                # 在UI线程中更新暂停状态
-                self.lbl_remaining.after(0, lambda: self.update_ui_state("PAUSED"))
-                
-                # 等待用户继续
-                while self.multi_key_pause_pending and not self.stop_requested and not self.skip_item_requested:
-                    time.sleep(0.1)
-                
-                self.multi_key_test_active = False
-                self.multi_key_pause_pending = False
-                
                 if self.stop_requested: break
                 if self.skip_item_requested:
                     self.skip_item_requested = False
                     continue
-                
-                # 用户继续后，继续执行后续的继电器测试逻辑
-                self.lbl_remaining.after(0, lambda: self.update_ui_state("TESTING"))
-                self.log("Multi-key test: Resumed, starting relay test cycle.", "TEST")
 
-            # 3. 初始化该项的剩余值
-            mode = item.get('mode')
-            target = item.get('target', 0)
-            
-            if mode == 'time':
-                unit = item.get('unit', 'Seconds')
-                seconds = target
-                if unit == 'Minutes': seconds = target * 60
-                elif unit == 'Hours': seconds = target * 3600
-                self.remaining_seconds = seconds
-                self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
-                
-                # 启动时间模式下的 UI 倒计时
-                self.lbl_remaining.after(0, self.run_timer_async)
-            else:
-                self.remaining_counts = target
-                self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
-
-            # 4. 执行单项测试循环
-            while self.is_running:
-                if self.stop_requested or self.skip_item_requested: break
-                
-                # 检查暂停（普通暂停）
-                if self.pause_requested:
-                    self.is_paused = True
-                    while self.pause_requested and not self.stop_requested:
-                        time.sleep(0.1)
-                    self.is_paused = False
-                    if self.stop_requested: break
-
-                # 执行动作
-                try:
-                    # 吸合继电器
-                    relay_conn.write(CMD_OPEN)
-                    self.log(f"Relay ON: {CMD_OPEN.hex(' ').upper()}", "COM")
-                    time.sleep(press_duration)
+                # 2. 多键测试：移动到位置后自动暂停，等待用户手动操作
+                if is_multi_key:
+                    self.multi_key_test_active = True
+                    self.multi_key_pause_pending = True
+                    self.log("Multi-key test: Auto-paused. Please press the keys manually, then click 'Resume' to continue.", "TEST")
                     
-                    # 断开继电器
-                    relay_conn.write(CMD_CLOSE)
-                    self.log(f"Relay OFF: {CMD_CLOSE.hex(' ').upper()}", "COM")
-                    time.sleep(interval)
-                except Exception as e:
-                    self.log(f"Relay Error: {e}", "ERR")
-                    break
+                    # 在UI线程中更新暂停状态
+                    self.lbl_remaining.after(0, lambda: self.update_ui_state("PAUSED"))
+                    
+                    # 等待用户继续
+                    while self.multi_key_pause_pending and not self.stop_requested and not self.skip_item_requested:
+                        time.sleep(0.1)
+                    
+                    self.multi_key_test_active = False
+                    self.multi_key_pause_pending = False
+                    
+                    if self.stop_requested: break
+                    if self.skip_item_requested:
+                        self.skip_item_requested = False
+                        continue
+                    
+                    # 用户继续后，继续执行后续的继电器测试逻辑
+                    self.lbl_remaining.after(0, lambda: self.update_ui_state("TESTING"))
+                    self.log("Multi-key test: Resumed, starting relay test cycle.", "TEST")
 
-                if mode == 'count':
-                    self.remaining_counts -= 1
+                # 3. 初始化该项的剩余值
+                mode = item.get('mode')
+                target = item.get('target', 0)
+                
+                if mode == 'time':
+                    unit = item.get('unit', 'Seconds')
+                    seconds = target
+                    if unit == 'Minutes': seconds = target * 60
+                    elif unit == 'Hours': seconds = target * 3600
+                    self.remaining_seconds = seconds
                     self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
-                    if self.remaining_counts <= 0:
-                        break
+                    
+                    # 启动时间模式下的 UI 倒计时
+                    self.lbl_remaining.after(0, self.run_timer_async)
                 else:
-                    if self.remaining_seconds <= 0:
+                    self.remaining_counts = target
+                    self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
+
+                # 4. 执行单项测试循环
+                while self.is_running:
+                    if self.stop_requested or self.skip_item_requested: break
+                    
+                    # 检查暂停（普通暂停）
+                    if self.pause_requested:
+                        self.is_paused = True
+                        while self.pause_requested and not self.stop_requested:
+                            time.sleep(0.1)
+                        self.is_paused = False
+                        if self.stop_requested: break
+
+                    # 执行动作
+                    try:
+                        # 吸合继电器
+                        relay_conn.write(CMD_OPEN)
+                        self.log(f"Relay ON: {CMD_OPEN.hex(' ').upper()}", "COM")
+                        time.sleep(press_duration)
+                        
+                        # 断开继电器
+                        relay_conn.write(CMD_CLOSE)
+                        self.log(f"Relay OFF: {CMD_CLOSE.hex(' ').upper()}", "COM")
+                        time.sleep(interval)
+                    except Exception as e:
+                        self.log(f"Relay Error: {e}", "ERR")
                         break
+
+                    if mode == 'count':
+                        self.remaining_counts -= 1
+                        self.lbl_remaining.after(0, lambda: self.update_remaining_display(mode))
+                        if self.remaining_counts <= 0:
+                            break
+                    else:
+                        if self.remaining_seconds <= 0:
+                            break
+                
+                self.skip_item_requested = False
+                if self.stop_requested: break
             
-            self.skip_item_requested = False
+            # 轮次结束检查
             if self.stop_requested: break
 
         # 收尾
@@ -354,12 +392,17 @@ class TestControlFrame(ttk.Frame):
 
     def update_remaining_display(self, mode):
         """更新剩余时间/次数显示"""
+        # 构建轮次前缀（仅在启用循环测试时显示）
+        round_prefix = ""
+        if self.loop_enabled:
+            round_prefix = f"[{tr('test_current_round')} {self.current_round}/{self.total_rounds}] "
+        
         if mode == 'time':
             m, s = divmod(self.remaining_seconds, 60)
             h, m = divmod(m, 60)
-            self.lbl_remaining.config(text=f"{tr('test_item')} {self.current_item_index+1}: {h:02d}:{m:02d}:{s:02d}")
+            self.lbl_remaining.config(text=f"{round_prefix}{tr('test_item')} {self.current_item_index+1}: {h:02d}:{m:02d}:{s:02d}")
         else:
-            self.lbl_remaining.config(text=f"{tr('test_item')} {self.current_item_index+1}: {self.remaining_counts} {tr('test_counts')}")
+            self.lbl_remaining.config(text=f"{round_prefix}{tr('test_item')} {self.current_item_index+1}: {self.remaining_counts} {tr('test_counts')}")
 
     def run_timer_async(self):
         """异步更新时间"""
@@ -522,6 +565,16 @@ class TestControlFrame(ttk.Frame):
         if self.timer_id:
             self.after_cancel(self.timer_id)
             self.timer_id = None
+        
+        # 重置循环测试相关变量
+        self.loop_enabled = False
+        self.total_rounds = 1
+        self.current_round = 1
+        
+        # 测试完成后刷新运动控制页面的位置显示
+        if hasattr(self, 'motion_control') and self.motion_control:
+            self.after(100, self.motion_control.refresh_positions)
+        
         self.update_ui_state("STANDBY")
         self.log("Test Finished/Stopped", "TEST")
 

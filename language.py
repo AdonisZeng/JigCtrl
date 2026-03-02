@@ -126,6 +126,11 @@ class LanguageManager:
             "settings_key2": {"zh": "按键2", "en": "Key 2"},
             "error_multi_key_exists": {"zh": "测试流程中已有多键测试项，不能再添加其他测试项", "en": "Multi-key test item already exists, cannot add other items"},
             "error_cannot_add_multi_key": {"zh": "测试流程中已有其他测试项，不能再添加多键测试项", "en": "Other test items exist, cannot add multi-key item"},
+            "settings_loop_test": {"zh": "循环测试", "en": "Loop Test"},
+            "settings_loop_count": {"zh": "循环次数:", "en": "Loop Count:"},
+            "settings_lock": {"zh": "锁定", "en": "Lock"},
+            "settings_unlock": {"zh": "解锁", "en": "Unlock"},
+            "settings_invalid_loop_count": {"zh": "请输入有效的循环次数（正整数）", "en": "Please enter a valid loop count (positive integer)"},
             
             # === 测试控制页面 ===
             "test_title": {"zh": "测试控制", "en": "Test Control"},
@@ -151,6 +156,8 @@ class LanguageManager:
             "test_resume": {"zh": "继续", "en": "Resume"},
             "test_item": {"zh": "项目", "en": "Item"},
             "test_counts": {"zh": "次", "en": "Counts"},
+            "test_round": {"zh": "轮", "en": "Round"},
+            "test_current_round": {"zh": "当前轮次", "en": "Current Round"},
 
             # === 日志页面 ===
             "log_title": {"zh": "日志", "en": "Logs"},
