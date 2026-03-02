@@ -5,6 +5,7 @@ import time
 import threading
 import struct
 from key_manager import KeyManager
+from language import tr
 
 class TestControlFrame(ttk.Frame):
     """
@@ -39,6 +40,10 @@ class TestControlFrame(ttk.Frame):
         self.skip_item_requested = False # 标志：用户是否请求跳过当前测试项
         self.current_test_thread = None # 当前运行测试逻辑的后台线程
         
+        # --- 电机位置跟踪变量 ---
+        self.current_x_pulse = 0        # X 轴当前脉冲位置
+        self.current_y_pulse = 0        # Y 轴当前脉冲位置
+        
         self.create_widgets()
 
     # ==========================================
@@ -48,7 +53,7 @@ class TestControlFrame(ttk.Frame):
         """创建并布局测试控制界面的所有组件"""
         
         # --- 状态监控显示区 ---
-        status_frame = ttk.LabelFrame(self, text="Status Monitor", padding=30)
+        status_frame = ttk.LabelFrame(self, text=tr("test_status_monitor"), padding=30)
         status_frame.pack(fill=tk.X, pady=10)
 
         # 使用一个容器来居中显示内容
@@ -56,24 +61,24 @@ class TestControlFrame(ttk.Frame):
         monitor_container.pack(expand=True)
 
         # 当前运行状态标签
-        self.lbl_status = ttk.Label(monitor_container, text="Current State: STANDBY", font=("Cambria", 16, "bold"), foreground="#605e5c")
+        self.lbl_status = ttk.Label(monitor_container, text=tr("test_current_state"), font=("Cambria", 16, "bold"), foreground="#605e5c")
         self.lbl_status.pack(pady=10)
 
         # 进度指示器容器
         progress_info = ttk.Frame(monitor_container)
         progress_info.pack(pady=10)
 
-        self.lbl_remaining = ttk.Label(progress_info, text="Remaining: --", font=("Cambria", 14))
+        self.lbl_remaining = ttk.Label(progress_info, text=tr("test_remaining") + ": --", font=("Cambria", 14))
         self.lbl_remaining.pack()
 
         # --- 控制按钮区 ---
         btn_frame = ttk.Frame(self)
         btn_frame.pack(pady=30)
 
-        self.btn_start = ttk.Button(btn_frame, text="Start Test", style="Success.TButton", command=self.start_test)
-        self.btn_pause = ttk.Button(btn_frame, text="Pause", command=self.pause_test, state=tk.DISABLED)
-        self.btn_skip = ttk.Button(btn_frame, text="Skip Item", command=self.skip_to_next, state=tk.DISABLED)
-        self.btn_stop = ttk.Button(btn_frame, text="Stop", style="Danger.TButton", command=self.stop_test, state=tk.DISABLED)
+        self.btn_start = ttk.Button(btn_frame, text=tr("test_start"), style="Success.TButton", command=self.start_test)
+        self.btn_pause = ttk.Button(btn_frame, text=tr("test_pause"), command=self.pause_test, state=tk.DISABLED)
+        self.btn_skip = ttk.Button(btn_frame, text=tr("test_skip"), command=self.skip_to_next, state=tk.DISABLED)
+        self.btn_stop = ttk.Button(btn_frame, text=tr("test_stop"), style="Danger.TButton", command=self.stop_test, state=tk.DISABLED)
 
         # 统一设置按钮宽度
         self.btn_start.pack(side=tk.LEFT, padx=15, ipadx=10)
@@ -127,23 +132,23 @@ class TestControlFrame(ttk.Frame):
         根据测试阶段更新 UI 组件的状态。
         """
         if state == "TESTING":
-            self.lbl_status.config(text="● TESTING", foreground="#107c10")
+            self.lbl_status.config(text=tr("test_testing"), foreground="#107c10")
             self.btn_start.config(state=tk.DISABLED)
-            self.btn_pause.config(state=tk.NORMAL, text="Pause")
+            self.btn_pause.config(state=tk.NORMAL, text=tr("test_pause"))
             self.btn_skip.config(state=tk.NORMAL)
             self.btn_stop.config(state=tk.NORMAL)
         elif state == "PAUSED":
-            self.lbl_status.config(text="II PAUSED", foreground="#d13438")
-            self.btn_start.config(state=tk.NORMAL, text="Resume")
+            self.lbl_status.config(text=tr("test_paused"), foreground="#d13438")
+            self.btn_start.config(state=tk.NORMAL, text=tr("test_resume"))
             self.btn_pause.config(state=tk.DISABLED)
             self.btn_skip.config(state=tk.NORMAL)
         elif state == "STANDBY":
-            self.lbl_status.config(text="STANDBY", foreground="#605e5c")
-            self.btn_start.config(state=tk.NORMAL, text="Start Test")
-            self.btn_pause.config(state=tk.DISABLED, text="Pause")
+            self.lbl_status.config(text=tr("test_standby"), foreground="#605e5c")
+            self.btn_start.config(state=tk.NORMAL, text=tr("test_start"))
+            self.btn_pause.config(state=tk.DISABLED, text=tr("test_pause"))
             self.btn_skip.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.DISABLED)
-            self.lbl_remaining.config(text="Remaining: --")
+            self.lbl_remaining.config(text=tr("test_remaining") + ": --")
 
     def run_test_cycle(self):
         """
@@ -166,6 +171,19 @@ class TestControlFrame(ttk.Frame):
             self.is_running = False
             self.lbl_remaining.after(0, self.finish_test)
             return
+
+        # --- 读取电机当前位置 ---
+        self.log("Reading current motor positions...", "MOT")
+        
+        x_pulse = self.read_motor_pulse(motor_x_conn, "X")
+        if x_pulse is not None:
+            self.current_x_pulse = x_pulse
+        
+        y_pulse = self.read_motor_pulse(motor_y_conn, "Y")
+        if y_pulse is not None:
+            self.current_y_pulse = y_pulse
+        
+        self.log(f"Current positions - X: {self.current_x_pulse}, Y: {self.current_y_pulse}", "MOT")
 
         press_duration = settings.get('press_duration', 100) / 1000.0
         interval = settings.get('press_interval', 500) / 1000.0
@@ -302,26 +320,131 @@ class TestControlFrame(ttk.Frame):
             self.timer_id = None
 
     def send_motor_pulse(self, conn, pulse, axis_name=""):
-        """发送电机脉冲指令 (Modbus RTU)"""
+        """
+        发送电机脉冲指令 (Modbus RTU)
+        
+        :param conn: 串口连接
+        :param pulse: 目标脉冲数（绝对位置）
+        :param axis_name: 轴名称 ("X" 或 "Y")
+        """
         if not conn or not conn.is_open:
             return
+        
+        # 获取当前位置
+        current_pulse = self.current_x_pulse if axis_name == "X" else self.current_y_pulse
+        
+        # 计算需要移动的距离
+        delta = pulse - current_pulse
+        
+        # 如果目标位置与当前位置相同，跳过移动
+        if delta == 0:
+            self.log(f"Motor {axis_name}: Already at target position ({pulse}), skipping movement", "MOT")
+            return
+        
+        # 确定移动方向：delta > 0 正转(1)，delta < 0 反转(0)
+        direction = 1 if delta > 0 else 0
+        abs_delta = abs(delta)
+        
+        # 检查脉冲数是否超过 16 位限制 (65535)
+        if abs_delta > 65535:
+            self.log(f"Motor {axis_name} Error: Pulse count {abs_delta} exceeds maximum (65535)", "ERR")
+            self.log(f"Motor {axis_name}: Consider using smaller coordinate values or multiple moves", "WRN")
+            return
+        
         try:
-            # 1. 设置脉冲数 (寄存器 0x05)
-            data = struct.pack('>BBHH', 0x01, 0x06, 0x05, pulse)
+            # 1. 设置方向 (寄存器 0x01)
+            data = struct.pack('>BBHH', 0x01, 0x06, 0x01, direction)
             crc = self.calculate_crc(data)
             full_msg = data + struct.pack('<H', crc)
             conn.write(full_msg)
-            self.log(f"Motor {axis_name} Set Pulse ({pulse}): {full_msg.hex(' ').upper()}", "COM")
+            direction_text = "CW" if direction == 1 else "CCW"
+            self.log(f"Motor {axis_name} Set Direction ({direction_text}): {full_msg.hex(' ').upper()}", "COM")
             
-            # 2. 发送运行指令 (寄存器 0x02, 值 1)
-            time.sleep(0.1)
+            time.sleep(0.05)
+            
+            # 2. 设置脉冲数 (寄存器 0x05)
+            data = struct.pack('>BBHH', 0x01, 0x06, 0x05, abs_delta)
+            crc = self.calculate_crc(data)
+            full_msg = data + struct.pack('<H', crc)
+            conn.write(full_msg)
+            self.log(f"Motor {axis_name} Set Pulse ({abs_delta}): {full_msg.hex(' ').upper()}", "COM")
+            
+            # 3. 发送运行指令 (寄存器 0x02, 值 1)
+            time.sleep(0.05)
             data = struct.pack('>BBHH', 0x01, 0x06, 0x02, 0x0001)
             crc = self.calculate_crc(data)
             full_msg = data + struct.pack('<H', crc)
             conn.write(full_msg)
             self.log(f"Motor {axis_name} Run: {full_msg.hex(' ').upper()}", "COM")
+            
+            # 更新当前位置
+            if axis_name == "X":
+                self.current_x_pulse = pulse
+            else:
+                self.current_y_pulse = pulse
+                
         except Exception as e:
             self.log(f"Motor {axis_name} Command Error: {e}", "ERR")
+
+    def send_motor_stop(self, conn, axis_name=""):
+        """
+        发送电机停止指令 (Modbus RTU)
+        使用寄存器 0x03（停止），值为 1
+        
+        :param conn: 串口连接
+        :param axis_name: 轴名称 ("X" 或 "Y")
+        """
+        if not conn or not conn.is_open:
+            return
+        
+        try:
+            # 发送停止指令 (寄存器 0x03, 值 1)
+            data = struct.pack('>BBHH', 0x01, 0x06, 0x03, 0x0001)
+            crc = self.calculate_crc(data)
+            full_msg = data + struct.pack('<H', crc)
+            conn.write(full_msg)
+            self.log(f"Motor {axis_name} Stop: {full_msg.hex(' ').upper()}", "COM")
+        except Exception as e:
+            self.log(f"Motor {axis_name} Stop Error: {e}", "ERR")
+
+    def read_motor_pulse(self, conn, axis_name=""):
+        """
+        读取电机当前脉冲位置 (Modbus RTU)
+        读取寄存器 0x18，返回 4 字节脉冲数据
+        
+        :param conn: 串口连接
+        :param axis_name: 轴名称 ("X" 或 "Y")
+        :return: 当前脉冲位置，读取失败返回 None
+        """
+        if not conn or not conn.is_open:
+            return None
+        
+        try:
+            # 清空接收缓冲区
+            conn.reset_input_buffer()
+            
+            # 发送读取命令 (功能码 0x03, 寄存器 0x18, 读取 2 个寄存器 = 4 字节)
+            data = struct.pack('>BBHH', 0x01, 0x03, 0x18, 0x02)
+            crc = self.calculate_crc(data)
+            full_msg = data + struct.pack('<H', crc)
+            conn.write(full_msg)
+            self.log(f"Motor {axis_name} Query Pulse: {full_msg.hex(' ').upper()}", "COM")
+            
+            # 等待响应 (9字节：地址+功能码+字节数+4字节数据+2字节CRC)
+            time.sleep(0.1)
+            if conn.in_waiting >= 9:
+                response = conn.read(9)
+                # 解析响应：第3-6字节是脉冲数据（大端模式，4字节，有符号整数）
+                pulse = int.from_bytes(response[3:7], 'big', signed=True)
+                self.log(f"Motor {axis_name} Current Pulse: {pulse}", "MOT")
+                return pulse
+            else:
+                self.log(f"Motor {axis_name} Query Pulse: No response", "WRN")
+                return None
+                
+        except Exception as e:
+            self.log(f"Motor {axis_name} Query Pulse Error: {e}", "ERR")
+            return None
 
     def calculate_crc(self, data):
         """计算 Modbus CRC16"""
@@ -365,13 +488,43 @@ class TestControlFrame(ttk.Frame):
         self.log("Test Resumed", "TEST")
 
     def stop_test(self):
-        """停止测试按钮的回调。设置停止请求标志，并确保暂停状态被解除。"""
+        """
+        停止测试按钮的回调。
+        设置停止请求标志，发送电机停止命令，并确保暂停状态被解除。
+        """
         self.stop_requested = True
-        self.pause_requested = False # 如果处于暂停状态，先解封线程使其能检测到停止标志并退出
-        self.log("Test Stop Requested (waiting for cycle to finish)", "TEST")
+        self.pause_requested = False  # 如果处于暂停状态，先解封线程使其能检测到停止标志并退出
+        
+        # 发送电机停止命令
+        motor_x_conn = self.settings_source.get_serial_connection("X-Axis Motor")
+        motor_y_conn = self.settings_source.get_serial_connection("Y-Axis Motor")
+        
+        if motor_x_conn and motor_x_conn.is_open:
+            self.send_motor_stop(motor_x_conn, "X")
+        
+        if motor_y_conn and motor_y_conn.is_open:
+            self.send_motor_stop(motor_y_conn, "Y")
+        
+        self.log("Test Stop Requested - Motors stopped", "TEST")
 
     def skip_to_next(self):
         """跳过当前测试项"""
         if self.is_running:
             self.skip_item_requested = True
             self.log("Skipping to next test item...", "TEST")
+    
+    def refresh_texts(self):
+        """刷新界面文本（语言切换时调用）"""
+        # 更新按钮文本
+        self.btn_start.config(text=tr("test_start"))
+        self.btn_pause.config(text=tr("test_pause"))
+        self.btn_skip.config(text=tr("test_skip"))
+        self.btn_stop.config(text=tr("test_stop"))
+        
+        # 更新状态标签
+        if self.is_running and not self.is_paused:
+            self.lbl_status.config(text=tr("test_testing"))
+        elif self.is_paused:
+            self.lbl_status.config(text=tr("test_paused"))
+        else:
+            self.lbl_status.config(text=tr("test_current_state"))

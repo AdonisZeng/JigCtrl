@@ -3,6 +3,7 @@ from tkinter import ttk, scrolledtext
 import serial
 import serial.tools.list_ports
 import struct
+from language import tr
 
 
 class MotorDebugFrame(ttk.Frame):
@@ -66,7 +67,7 @@ class MotorDebugFrame(ttk.Frame):
 
     def create_serial_config(self, parent):
         """创建串口配置区域"""
-        serial_frame = ttk.LabelFrame(parent, text="Serial Connection", padding=15)
+        serial_frame = ttk.LabelFrame(parent, text=tr("debug_serial_connection"), padding=15)
         serial_frame.pack(fill=tk.X, pady=5)
 
         grid_frame = ttk.Frame(serial_frame)
@@ -74,14 +75,14 @@ class MotorDebugFrame(ttk.Frame):
         grid_frame.columnconfigure(1, weight=1)
 
         # 端口选择
-        ttk.Label(grid_frame, text="Port:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Label(grid_frame, text=tr("debug_port_label")).grid(row=0, column=0, sticky=tk.W, pady=5)
         self.port_var = tk.StringVar()
         self.port_combo = ttk.Combobox(grid_frame, textvariable=self.port_var, state="readonly")
         self.port_combo.grid(row=0, column=1, sticky=tk.EW, padx=10, pady=5)
         self.port_combo.bind('<Button-1>', self.refresh_ports)
 
         # 波特率
-        ttk.Label(grid_frame, text="Baud:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(grid_frame, text=tr("debug_baud_label")).grid(row=1, column=0, sticky=tk.W, pady=5)
         self.baud_var = tk.IntVar(value=9600)
         ttk.Combobox(grid_frame, textvariable=self.baud_var,
                      values=[9600, 19200, 38400, 115200], state="readonly").grid(row=1, column=1, sticky=tk.EW, padx=10, pady=5)
@@ -90,10 +91,10 @@ class MotorDebugFrame(ttk.Frame):
         btn_frame = ttk.Frame(serial_frame)
         btn_frame.pack(fill=tk.X, pady=(10, 0))
 
-        self.btn_open = ttk.Button(btn_frame, text="Open Port", style="Primary.TButton", command=self.toggle_port)
-        self.btn_open.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
-        self.btn_get_all = ttk.Button(btn_frame, text="Get All Params", command=self.get_all_parameters)
+        self.btn_open = ttk.Button(btn_frame, text=tr("debug_open_port"), style="Primary.TButton", command=self.toggle_port)
+        self.btn_open.pack(side=tk.LEFT, padx=5)
+        
+        self.btn_get_all = ttk.Button(btn_frame, text=tr("debug_get_all_params"), command=self.get_all_parameters)
         self.btn_get_all.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.device_addr = 0x01
@@ -101,66 +102,66 @@ class MotorDebugFrame(ttk.Frame):
 
     def create_quick_commands(self, parent):
         """创建快速指令按钮区域"""
-        quick_frame = ttk.LabelFrame(parent, text="Quick Commands", padding=15)
-        quick_frame.pack(fill=tk.X, pady=5)
+        self.quick_frame = ttk.LabelFrame(parent, text=tr("debug_quick_commands"), padding=15)
+        self.quick_frame.pack(fill=tk.X, pady=5)
 
         # 1. 运行控制 (Row 1)
-        row1 = ttk.Frame(quick_frame)
+        row1 = ttk.Frame(self.quick_frame)
         row1.pack(fill=tk.X, pady=5)
         
-        ttk.Button(row1, text="Run", width=8, command=lambda: self.send_quick_command(0x02, 1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text="Pause", width=8, command=lambda: self.send_quick_command(0x02, 0)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text="Stop", width=8, style="Danger.TButton", command=lambda: self.send_quick_command(0x03, 1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text="Status", width=8, command=lambda: self.send_query_command(0x02)).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(row1, text=tr("debug_run_btn"), width=8, command=lambda: self.send_quick_command(0x02, 1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(row1, text=tr("debug_pause_btn"), width=8, command=lambda: self.send_quick_command(0x02, 0)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(row1, text=tr("debug_stop_btn"), width=8, style="Danger.TButton", command=lambda: self.send_quick_command(0x03, 1)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(row1, text=tr("debug_status_btn"), width=8, command=lambda: self.send_query_command(0x02)).pack(side=tk.RIGHT, padx=2)
 
         # 2. 速度和方向 (Row 2)
-        row2 = ttk.Frame(quick_frame)
+        row2 = ttk.Frame(self.quick_frame)
         row2.pack(fill=tk.X, pady=10)
         
-        ttk.Label(row2, text="Speed:").pack(side=tk.LEFT)
+        ttk.Label(row2, text=tr("debug_speed_label")).pack(side=tk.LEFT)
         self.speed_var = tk.IntVar(value=100)
-        ttk.Entry(row2, textvariable=self.speed_var, width=8).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text="Set", width=5, command=self.set_speed).pack(side=tk.LEFT)
+        ttk.Entry(row2, textvariable=self.speed_var, width=6).pack(side=tk.LEFT, padx=5)
+        ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=self.set_speed).pack(side=tk.LEFT)
         
-        ttk.Label(row2, text="Dir:").pack(side=tk.LEFT, padx=(15, 0))
+        ttk.Label(row2, text=tr("debug_dir_label")).pack(side=tk.LEFT, padx=(15, 0))
         self.dir_var = tk.IntVar(value=1)
         ttk.Combobox(row2, textvariable=self.dir_var, values=[0, 1], state="readonly", width=3).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text="Set", width=5, command=lambda: self.send_quick_command(0x01, self.dir_var.get())).pack(side=tk.LEFT)
+        ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x01, self.dir_var.get())).pack(side=tk.LEFT)
 
         # 3. 行程设置 (Group)
-        travel_frame = tk.Frame(quick_frame, bg="#f8f9fa", padx=10, pady=10, highlightthickness=1, highlightbackground="#edebe9")
+        travel_frame = tk.Frame(self.quick_frame, bg="#f8f9fa", padx=10, pady=10, highlightthickness=1, highlightbackground="#edebe9")
         travel_frame.pack(fill=tk.X, pady=5)
         
         # Revolutions
         rev_row = ttk.Frame(travel_frame)
         rev_row.pack(fill=tk.X, pady=2)
-        ttk.Label(rev_row, text="Rev:", background="#f8f9fa").pack(side=tk.LEFT)
-        self.rev_var = tk.IntVar(value=0)
-        ttk.Entry(rev_row, textvariable=self.rev_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(rev_row, text="Set", width=5, command=lambda: self.send_quick_command(0x06, self.rev_var.get())).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(rev_row, text="Get", width=5, command=lambda: self.send_query_command(0x06)).pack(side=tk.RIGHT, padx=2)
+        ttk.Label(rev_row, text=tr("debug_rev_label"), background="#f8f9fa").pack(side=tk.LEFT)
+        self.rev_var = tk.IntVar(value=1)
+        ttk.Entry(rev_row, textvariable=self.rev_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
+        ttk.Button(rev_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x06, self.rev_var.get())).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(rev_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x06)).pack(side=tk.RIGHT, padx=2)
 
         # Angle
         angle_row = ttk.Frame(travel_frame)
         angle_row.pack(fill=tk.X, pady=2)
-        ttk.Label(angle_row, text="Angle:", background="#f8f9fa").pack(side=tk.LEFT)
+        ttk.Label(angle_row, text=tr("debug_angle_label"), background="#f8f9fa").pack(side=tk.LEFT)
         self.angle_var = tk.IntVar(value=0)
-        ttk.Entry(angle_row, textvariable=self.angle_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(angle_row, text="Set", width=5, command=self.set_angle).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(angle_row, text="Get", width=5, command=lambda: self.send_query_command(0x07)).pack(side=tk.RIGHT, padx=2)
+        ttk.Entry(angle_row, textvariable=self.angle_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
+        ttk.Button(angle_row, text=tr("debug_set_btn"), width=5, command=self.set_angle).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(angle_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x07)).pack(side=tk.RIGHT, padx=2)
 
         # Pulse
         pulse_row = ttk.Frame(travel_frame)
         pulse_row.pack(fill=tk.X, pady=2)
-        ttk.Label(pulse_row, text="Pulse:", background="#f8f9fa").pack(side=tk.LEFT)
+        ttk.Label(pulse_row, text=tr("debug_pulse_label"), background="#f8f9fa").pack(side=tk.LEFT)
         self.pulse_var = tk.IntVar(value=0)
-        ttk.Entry(pulse_row, textvariable=self.pulse_var, width=10).pack(side=tk.LEFT, padx=5)
-        ttk.Button(pulse_row, text="Set", width=5, command=lambda: self.send_quick_command(0x05, self.pulse_var.get())).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(pulse_row, text="Get", width=5, command=lambda: self.send_query_command(0x05)).pack(side=tk.RIGHT, padx=2)
+        ttk.Entry(pulse_row, textvariable=self.pulse_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
+        ttk.Button(pulse_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x05, self.pulse_var.get())).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(pulse_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x05)).pack(side=tk.RIGHT, padx=2)
 
     def create_manual_command(self, parent):
         """创建手动指令输入区域"""
-        manual_frame = ttk.LabelFrame(parent, text="Manual Command (HEX)", padding=15)
+        manual_frame = ttk.LabelFrame(parent, text=tr("debug_manual_hex"), padding=15)
         manual_frame.pack(fill=tk.X, pady=5)
 
         self.cmd_var = tk.StringVar()
@@ -168,16 +169,16 @@ class MotorDebugFrame(ttk.Frame):
 
         ex_frame = ttk.Frame(manual_frame)
         ex_frame.pack(fill=tk.X)
-        ttk.Button(ex_frame, text="Ex: Run", width=8, command=lambda: self.set_manual_cmd("01 06 00 02 00 01")).pack(side=tk.LEFT, padx=2)
-        ttk.Button(ex_frame, text="Ex: Stop", width=8, command=lambda: self.set_manual_cmd("01 06 00 03 00 01")).pack(side=tk.LEFT, padx=2)
-        ttk.Button(ex_frame, text="Ex: Query", width=8, command=lambda: self.set_manual_cmd("01 03 00 04 00 01")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(ex_frame, text=tr("debug_ex_run"), width=8, command=lambda: self.set_manual_cmd("01 06 00 02 00 01")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(ex_frame, text=tr("debug_ex_stop"), width=8, command=lambda: self.set_manual_cmd("01 06 00 03 00 01")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(ex_frame, text=tr("debug_ex_query"), width=8, command=lambda: self.set_manual_cmd("01 03 00 04 00 01")).pack(side=tk.LEFT, padx=2)
 
         # 发送按钮
-        ttk.Button(manual_frame, text="Send Manual Command", style="Primary.TButton", command=self.send_manual_command).pack(fill=tk.X, pady=(15, 0))
+        ttk.Button(manual_frame, text=tr("debug_send"), style="Primary.TButton", command=self.send_manual_command).pack(fill=tk.X, pady=(15, 0))
 
     def create_log_area(self, parent):
         """创建日志显示区域"""
-        log_frame = ttk.LabelFrame(parent, text="Communication Log", padding=15)
+        log_frame = ttk.LabelFrame(parent, text=tr("debug_comm_log"), padding=15)
         log_frame.pack(fill=tk.BOTH, expand=True)
 
         # 工具栏
@@ -186,12 +187,12 @@ class MotorDebugFrame(ttk.Frame):
 
         # 显示选项
         self.show_hex_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(toolbar, text="HEX", variable=self.show_hex_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(toolbar, text=tr("debug_hex"), variable=self.show_hex_var).pack(side=tk.LEFT, padx=5)
         self.show_ascii_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(toolbar, text="ASCII", variable=self.show_ascii_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(toolbar, text=tr("debug_ascii"), variable=self.show_ascii_var).pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(toolbar, text="🗑️ Clear", width=8, command=self.clear_log).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(toolbar, text="📋 Copy", width=8, command=self.copy_selected).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(toolbar, text=tr("debug_clear"), width=12, command=self.clear_log).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(toolbar, text=tr("debug_copy"), width=8, command=self.copy_selected).pack(side=tk.RIGHT, padx=5)
 
         # 日志文本框
         log_container = ttk.Frame(log_frame, style="Card.TFrame")
@@ -264,7 +265,7 @@ class MotorDebugFrame(ttk.Frame):
             )
 
             self.is_open = True
-            self.btn_open.config(text="Close Port")
+            self.btn_open.config(text=tr("debug_close_port"))
             self.add_log(f"Port {port} opened successfully", "info")
             self.log(f"Motor Debug: Port {port} opened", "SER")
 
@@ -282,7 +283,7 @@ class MotorDebugFrame(ttk.Frame):
 
         self.serial_conn = None
         self.is_open = False
-        self.btn_open.config(text="Open Port")
+        self.btn_open.config(text=tr("debug_open_port"))
         self.add_log("Port closed", "info")
         self.log("Motor Debug: Port closed", "SER")
 
@@ -667,3 +668,13 @@ class MotorDebugFrame(ttk.Frame):
             self.clipboard_append(selected)
         except tk.TclError:
             pass
+    
+    def refresh_texts(self):
+        """刷新界面文本（语言切换时调用）"""
+        # 更新快速指令区域标题
+        if hasattr(self, 'quick_frame'):
+            self.quick_frame.config(text=tr("debug_quick_commands"))
+        
+        # 更新按钮文本
+        if hasattr(self, 'btn_open'):
+            self.btn_open.config(text=tr("debug_close_port") if self.is_open else tr("debug_open_port"))

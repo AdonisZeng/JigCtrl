@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 import datetime
+from language import tr
 
 class LogFrame(ttk.Frame):
     """
@@ -37,18 +38,18 @@ class LogFrame(ttk.Frame):
         self.toolbar.pack(fill=tk.X, pady=(0, 10))
 
         # 1. 筛选按钮
-        self.btn_filter = ttk.Button(self.toolbar, text="🔍 Filter", command=self.open_filter_window)
+        self.btn_filter = ttk.Button(self.toolbar, text=tr("log_filter"), command=self.open_filter_window)
         self.btn_filter.pack(side=tk.LEFT, padx=5)
 
         # 2. 恢复按钮
-        self.btn_recover = ttk.Button(self.toolbar, text="↺ Show All", command=self.recover_logs)
+        self.btn_recover = ttk.Button(self.toolbar, text=tr("log_show_all"), command=self.recover_logs)
 
         # 3. 导出日志按钮
-        self.btn_export = ttk.Button(self.toolbar, text="💾 Export Log", command=self.export_log)
+        self.btn_export = ttk.Button(self.toolbar, text=tr("log_export"), command=self.export_log)
         self.btn_export.pack(side=tk.RIGHT, padx=5)
 
         # 4. 清空日志按钮
-        self.btn_clear = ttk.Button(self.toolbar, text="🗑️ Clear Log", style="Danger.TButton", command=self.clear_log_with_confirm)
+        self.btn_clear = ttk.Button(self.toolbar, text=tr("log_clear"), style="Danger.TButton", command=self.clear_log_with_confirm)
         self.btn_clear.pack(side=tk.RIGHT, padx=5)
 
         # --- 日志显示区域 (Log Area) ---
@@ -59,24 +60,24 @@ class LogFrame(ttk.Frame):
             log_container, 
             state='disabled', 
             height=20, 
-            font=("Cambria", 10),
-            bg="#2b2b2b", # 深色背景
-            fg="#d1d1d1", # 浅灰色文字
+            font=("Microsoft YaHei", 9),
+            bg="#1e1e1e", # 更深色的背景，提高对比度
+            fg="#e0e0e0", # 更亮的文字，提高对比度
             highlightthickness=0,
             borderwidth=0
         )
         self.log_area.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        # 配置日志颜色标签
-        self.log_area.tag_configure("SYS", foreground="#3498db")    # 蓝色
-        self.log_area.tag_configure("MOT", foreground="#9b59b6")    # 紫色
-        self.log_area.tag_configure("SET", foreground="#f1c40f")    # 黄色
-        self.log_area.tag_configure("SER", foreground="#1abc9c")    # 青色
-        self.log_area.tag_configure("TEST", foreground="#2ecc71")   # 绿色
-        self.log_area.tag_configure("REL", foreground="#e67e22")    # 橙色
-        self.log_area.tag_configure("ERR", foreground="#e74c3c", font=("Cambria", 10, "bold")) # 红色
-        self.log_area.tag_configure("COM", foreground="#7f8c8d")    # 灰色 (通讯日志)
-        self.log_area.tag_configure("TIMESTAMP", foreground="#586e75") # 时间戳颜色
+        # 配置日志颜色标签 - 优化颜色对比度
+        self.log_area.tag_configure("SYS", foreground="#61dafb")    # 更亮的蓝色
+        self.log_area.tag_configure("MOT", foreground="#b388ff")    # 更亮的紫色
+        self.log_area.tag_configure("SET", foreground="#fff59d")    # 更亮的黄色
+        self.log_area.tag_configure("SER", foreground="#80cbc4")    # 更亮的青色
+        self.log_area.tag_configure("TEST", foreground="#a5d6a7")   # 更亮的绿色
+        self.log_area.tag_configure("REL", foreground="#ffcc80")    # 更亮的橙色
+        self.log_area.tag_configure("ERR", foreground="#ef9a9a", font=("Microsoft YaHei", 9, "bold")) # 更亮的红色
+        self.log_area.tag_configure("COM", foreground="#b0bec5")    # 更亮的灰色
+        self.log_area.tag_configure("TIMESTAMP", foreground="#546e7a") # 时间戳颜色
 
     def add_log(self, message, category="SYS"):
         """
@@ -271,18 +272,18 @@ class LogFrame(ttk.Frame):
             set_vars_from_dt(end_vars, now)
 
         # 初始化时间按钮
-        btn_init_time = ttk.Button(filter_win, text="Init Time", command=init_time)
+        btn_init_time = ttk.Button(filter_win, text=tr("log_init_time"), command=init_time)
         btn_init_time.pack(pady=5)
 
         # --- 筛选分类 (Category) ---
-        cat_frame = ttk.LabelFrame(filter_win, text="Category Tag", padding=10)
+        cat_frame = ttk.LabelFrame(filter_win, text=tr("log_category_tag"), padding=10)
         cat_frame.pack(fill=tk.X, padx=10, pady=5)
         cat_var = tk.StringVar()
         cat_combo = ttk.Combobox(cat_frame, textvariable=cat_var, values=self.categories)
         cat_combo.pack(fill=tk.X)
 
         # --- 筛选内容关键字 (Content Keyword) ---
-        content_frame = ttk.LabelFrame(filter_win, text="Log Content Keyword", padding=10)
+        content_frame = ttk.LabelFrame(filter_win, text=tr("log_content_keyword"), padding=10)
         content_frame.pack(fill=tk.X, padx=10, pady=5)
         content_var = tk.StringVar()
         ent_content = ttk.Entry(content_frame, textvariable=content_var)
@@ -321,10 +322,10 @@ class LogFrame(ttk.Frame):
             filter_win.destroy()
 
         # 底部按钮布局
-        btn_reset = ttk.Button(btn_action_frame, text="Reset", command=reset_filters_ui)
+        btn_reset = ttk.Button(btn_action_frame, text=tr("log_reset"), command=reset_filters_ui)
         btn_reset.pack(side=tk.LEFT, padx=10)
 
-        btn_apply = ttk.Button(btn_action_frame, text="Filter", command=apply_filter_action)
+        btn_apply = ttk.Button(btn_action_frame, text=tr("log_filter_btn"), command=apply_filter_action)
         btn_apply.pack(side=tk.RIGHT, padx=10)
 
     def apply_filter(self, start_time, end_time, category, keyword):
@@ -353,3 +354,10 @@ class LogFrame(ttk.Frame):
         # 滚动到最新位置并重新禁用编辑
         self.log_area.see(tk.END)
         self.log_area.config(state='disabled')
+    
+    def refresh_texts(self):
+        """刷新界面文本（语言切换时调用）"""
+        self.btn_filter.config(text=tr("log_filter"))
+        self.btn_export.config(text=tr("log_export"))
+        self.btn_clear.config(text=tr("log_clear"))
+        self.btn_recover.config(text=tr("log_show_all"))

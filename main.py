@@ -1,10 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
-from ui_motion import MotionControlFrame
-from ui_settings import SettingsFrame
-from ui_test_control import TestControlFrame
-from ui_log import LogFrame
-from ui_motor_debug import MotorDebugFrame
+from motion import MotionControlFrame
+from settings import SettingsFrame
+from test_control import TestControlFrame
+from log import LogFrame
+from motor_debug import MotorDebugFrame
+from utils import StatusBar, Tooltip
+from language import get_language_manager, tr
 
 class JigCtrlApp(tk.Tk):
     """
@@ -13,10 +15,15 @@ class JigCtrlApp(tk.Tk):
     """
     def __init__(self):
         super().__init__()
+        # 初始化语言管理器
+        self.lang_manager = get_language_manager()
+        
         # 设置窗口标题
         self.title("JigCtrl - Remote Control Jig System")
         # 设置窗口初始大小
         self.geometry("1280x720")
+        # 设置最小窗口大小
+        self.minsize(1024, 600)
         
         # --- 1. 样式配置 ---
         self.configure_styles()
@@ -24,7 +31,10 @@ class JigCtrlApp(tk.Tk):
         # --- 2. 界面组件创建 ---
         self.create_widgets()
         
-        # --- 3. 绑定窗口关闭事件 ---
+        # --- 3. 创建底部状态栏 ---
+        self.status_bar = StatusBar(self, on_language_change=self.refresh_all_texts)
+        
+        # --- 4. 绑定窗口关闭事件 ---
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def configure_styles(self):
@@ -51,9 +61,9 @@ class JigCtrlApp(tk.Tk):
             'border': "#edebe9"       # 边框色
         }
 
-        # 全局字体
-        default_font = ("Cambria", 10)
-        header_font = ("Cambria", 11, "bold")
+        # 全局字体 - 使用更现代的字体
+        default_font = ("Microsoft YaHei", 9)
+        header_font = ("Microsoft YaHei", 10, "bold")
         
         # 1. 基础配置
         style.configure(".", font=default_font, background=COLORS['bg'], foreground=COLORS['text'])
@@ -69,11 +79,11 @@ class JigCtrlApp(tk.Tk):
         # 4. 标签样式
         style.configure("TLabel", background=COLORS['bg'], foreground=COLORS['text'])
         style.configure("Header.TLabel", font=header_font, foreground=COLORS['primary'])
-        style.configure("Secondary.TLabel", foreground=COLORS['secondary_text'], font=("Cambria", 9))
+        style.configure("Secondary.TLabel", foreground=COLORS['secondary_text'], font=("Microsoft YaHei", 9))
         
-        # 5. 按钮样式 (使用不同颜色区分)
+        # 5. 按钮样式 (使用统一的 padding 而非 width)
         # 默认按钮
-        style.configure("TButton", font=default_font, padding=(10, 5))
+        style.configure("TButton", font=default_font, padding=(8, 4))
         
         # 强调按钮 (Primary)
         style.configure("Primary.TButton", font=default_font, foreground="white", background=COLORS['primary'])
@@ -81,12 +91,14 @@ class JigCtrlApp(tk.Tk):
         
         # 成功按钮 (Success)
         style.configure("Success.TButton", font=default_font, foreground="white", background=COLORS['success'])
+        style.map("Success.TButton", background=[('active', '#0f6b0f')])
         
         # 危险按钮 (Danger)
         style.configure("Danger.TButton", font=default_font, foreground="white", background=COLORS['danger'])
+        style.map("Danger.TButton", background=[('active', '#c02b33')])
         
         # 方向控制按钮
-        style.configure("Dir.TButton", font=("Cambria", 12, "bold"), padding=10)
+        style.configure("Dir.TButton", font=("Microsoft YaHei", 11, "bold"), padding=12)
         
         # 6. 输入框和下拉框
         style.configure("TEntry", fieldbackground="white", bordercolor=COLORS['border'], lightcolor=COLORS['border'])
@@ -94,11 +106,14 @@ class JigCtrlApp(tk.Tk):
         
         # 7. 选项卡 (Notebook) 样式
         style.configure("TNotebook", background=COLORS['bg'], borderwidth=0)
-        style.configure("TNotebook.Tab", font=default_font, padding=(15, 5), background=COLORS['border'])
+        style.configure("TNotebook.Tab", font=default_font, padding=(15, 8), background=COLORS['border'])
         style.map("TNotebook.Tab", 
                   background=[("selected", COLORS['bg']), ("active", "#e1dfdd")],
                   foreground=[("selected", COLORS['primary'])])
-
+        
+        # 8. 进度条样式
+        style.configure("TProgressbar", thickness=20, barcolor=COLORS['primary'], trackcolor=COLORS['border'])
+        
         # 确保根窗口背景
         self.configure(background=COLORS['bg'])
 
@@ -117,7 +132,7 @@ class JigCtrlApp(tk.Tk):
         self.tab_log = LogFrame(self.notebook)
         
         # 2. 参数设置页签 (先初始化，因为运动控制需要获取Y轴串口连接)
-        self.tab_settings = SettingsFrame(self.notebook, log_callback=self.tab_log.add_log)
+        self.tab_settings = SettingsFrame(self.notebook, log_callback=self.tab_log.add_log, on_motor_connect_callback=self.on_motor_connected)
         
         # 3. 运动控制页签 (传入设置页签引用，以便获取Y轴串口连接)
         self.tab_motion = MotionControlFrame(self.notebook, settings_source=self.tab_settings, log_callback=self.tab_log.add_log)
@@ -132,11 +147,79 @@ class JigCtrlApp(tk.Tk):
         self.tab_motor_debug = MotorDebugFrame(self.notebook, log_callback=self.tab_log.add_log)
 
         # 将页签添加到 Notebook 中显示 (Motor Debug 在最右端)
-        self.notebook.add(self.tab_motion, text="Motion Control")
-        self.notebook.add(self.tab_settings, text="Parameter Settings")
-        self.notebook.add(self.tab_test, text="Test Control")
-        self.notebook.add(self.tab_log, text="Logs")
-        self.notebook.add(self.tab_motor_debug, text="Motor Debug")
+        self.notebook.add(self.tab_motion, text=tr("tab_motion"))
+        self.notebook.add(self.tab_settings, text=tr("tab_settings"))
+        self.notebook.add(self.tab_test, text=tr("tab_test"))
+        self.notebook.add(self.tab_log, text=tr("tab_log"))
+        self.notebook.add(self.tab_motor_debug, text=tr("tab_debug"))
+
+        # --- 5. 绑定快捷键 ---
+        self.bind_shortcuts()
+    
+    def refresh_all_texts(self):
+        """刷新所有界面文本"""
+        # 更新页签标题
+        self.notebook.tab(self.tab_motion, text=tr("tab_motion"))
+        self.notebook.tab(self.tab_settings, text=tr("tab_settings"))
+        self.notebook.tab(self.tab_test, text=tr("tab_test"))
+        self.notebook.tab(self.tab_log, text=tr("tab_log"))
+        self.notebook.tab(self.tab_motor_debug, text=tr("tab_debug"))
+        
+        # 刷新各页签的文本
+        if hasattr(self.tab_motion, 'refresh_texts'):
+            self.tab_motion.refresh_texts()
+        if hasattr(self.tab_settings, 'refresh_texts'):
+            self.tab_settings.refresh_texts()
+        if hasattr(self.tab_test, 'refresh_texts'):
+            self.tab_test.refresh_texts()
+        if hasattr(self.tab_log, 'refresh_texts'):
+            self.tab_log.refresh_texts()
+        if hasattr(self.tab_motor_debug, 'refresh_texts'):
+            self.tab_motor_debug.refresh_texts()
+
+    def bind_shortcuts(self):
+        """
+        绑定全局快捷键。
+        """
+        # Ctrl+Z: 撤销 (仅在设置页签时有效)
+        self.bind('<Control-z>', lambda e: self.tab_settings.undo_changes() if hasattr(self, 'tab_settings') else None)
+        self.bind('<Control-Z>', lambda e: self.tab_settings.undo_changes() if hasattr(self, 'tab_settings') else None)
+        
+        # Ctrl+Y: 重做 (仅在设置页签时有效)
+        self.bind('<Control-y>', lambda e: self.tab_settings.redo_changes() if hasattr(self, 'tab_settings') else None)
+        self.bind('<Control-Y>', lambda e: self.tab_settings.redo_changes() if hasattr(self, 'tab_settings') else None)
+        
+        # Ctrl+S: 保存配置
+        self.bind('<Control-s>', lambda e: self.on_save_config())
+        self.bind('<Control-S>', lambda e: self.on_save_config())
+        
+        # F5: 刷新状态
+        self.bind('<F5>', lambda e: self.on_refresh())
+        
+        # Esc: 关闭当前对话框或取消操作
+        self.bind('<Escape>', lambda e: self.on_escape())
+
+    def on_save_config(self):
+        """保存配置快捷键"""
+        if hasattr(self, 'tab_settings'):
+            self.tab_settings.save_config_to_file()
+            self.status_bar.set_status("Configuration saved", 2000)
+
+    def on_motor_connected(self):
+        """电机串口连接成功后的回调，刷新位置显示"""
+        if hasattr(self, 'tab_motion'):
+            # 延迟 200ms 后刷新位置，等待串口稳定
+            self.after(200, self.tab_motion.refresh_positions)
+
+    def on_refresh(self):
+        """刷新状态快捷键"""
+        self.status_bar.set_status("Status refreshed", 2000)
+        # 可以在这里添加其他刷新逻辑
+
+    def on_escape(self):
+        """Esc 键处理"""
+        # 可以在这里添加 Esc 键的处理逻辑
+        pass
 
     def on_closing(self):
         """

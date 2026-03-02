@@ -5,6 +5,7 @@ import threading
 import time
 from key_manager import KeyManager
 from key_selection_window import KeySelectionWindow
+from language import tr
 
 
 class MotionControlFrame(ttk.Frame):
@@ -54,17 +55,17 @@ class MotionControlFrame(ttk.Frame):
         top_frame = ttk.Frame(self)
         top_frame.pack(fill=tk.X, pady=(0, 10))
 
-        self.control_frame = ttk.LabelFrame(top_frame, text="Manual Control", padding=15)
+        self.control_frame = ttk.LabelFrame(top_frame, text=tr("motion_manual_control"), padding=15)
         self.control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
         # 方向按钮容器
         self.control_container = ttk.Frame(self.control_frame)
         self.control_container.pack(expand=True)
 
-        self.btn_up = ttk.Button(self.control_container, text="▲\nUp", style="Dir.TButton")
-        self.btn_left = ttk.Button(self.control_container, text="◀\nLeft", style="Dir.TButton")
-        self.btn_down = ttk.Button(self.control_container, text="▼\nDown", style="Dir.TButton")
-        self.btn_right = ttk.Button(self.control_container, text="▶\nRight", style="Dir.TButton")
+        self.btn_up = ttk.Button(self.control_container, text=tr("motion_up"), style="Dir.TButton")
+        self.btn_left = ttk.Button(self.control_container, text=tr("motion_left"), style="Dir.TButton")
+        self.btn_down = ttk.Button(self.control_container, text=tr("motion_down"), style="Dir.TButton")
+        self.btn_right = ttk.Button(self.control_container, text=tr("motion_right"), style="Dir.TButton")
 
         self.btn_up.grid(row=0, column=1, padx=8, pady=8)
         self.btn_left.grid(row=1, column=0, padx=8, pady=8)
@@ -83,28 +84,29 @@ class MotionControlFrame(ttk.Frame):
             btn.bind('<ButtonRelease-1>', lambda e, d=direction: self.on_release(d))
 
         # --- 坐标系构建区域 (Coordinate System Area) ---
-        self.coord_frame = ttk.LabelFrame(top_frame, text="Coordinate System", padding=15)
+        self.coord_frame = ttk.LabelFrame(top_frame, text=tr("motion_coordinate_system"), padding=15)
         self.coord_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # 1. 原点控制行
         origin_row = ttk.Frame(self.coord_frame)
         origin_row.pack(fill=tk.X, pady=(0, 15))
 
-        self.btn_set_origin = ttk.Button(origin_row, text="Set Origin", style="Primary.TButton", command=self.on_set_origin)
+        self.btn_set_origin = ttk.Button(origin_row, text=tr("motion_set_origin"), style="Primary.TButton", command=self.on_set_origin)
         self.btn_set_origin.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.btn_return_origin = ttk.Button(origin_row, text="Return to Origin", command=self.on_return_to_origin)
+        self.btn_return_origin = ttk.Button(origin_row, text=tr("motion_return_origin"), command=self.on_return_to_origin)
         self.btn_return_origin.pack(side=tk.LEFT, padx=(0, 20))
 
         ttk.Separator(origin_row, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
-        ttk.Label(origin_row, text="Homing Speed (RPM):", font=("Cambria", 9)).pack(side=tk.LEFT, padx=(0, 5))
+        self.lbl_homing_speed = ttk.Label(origin_row, text=tr("motion_homing_speed"), font=("Cambria", 9))
+        self.lbl_homing_speed.pack(side=tk.LEFT, padx=(0, 5))
         self.homing_speed_var = tk.StringVar(value="100")
         self.entry_homing_speed = ttk.Entry(origin_row, textvariable=self.homing_speed_var, width=8)
         self.entry_homing_speed.pack(side=tk.LEFT, padx=(0, 5))
         
-        ttk.Button(origin_row, text="Get", width=5, command=self.on_get_homing_speed).pack(side=tk.LEFT, padx=2)
-        ttk.Button(origin_row, text="Set", width=5, command=self.on_set_homing_speed).pack(side=tk.LEFT, padx=2)
+        ttk.Button(origin_row, text=tr("motion_get"), width=5, command=self.on_get_homing_speed).pack(side=tk.LEFT, padx=2)
+        ttk.Button(origin_row, text=tr("motion_set"), width=5, command=self.on_set_homing_speed).pack(side=tk.LEFT, padx=2)
 
         # 2. 脉冲数显示行 (使用卡片式显示)
         pulse_display_row = ttk.Frame(self.coord_frame)
@@ -114,32 +116,37 @@ class MotionControlFrame(ttk.Frame):
         x_card = tk.Frame(pulse_display_row, bg="white", highlightthickness=1, highlightbackground="#edebe9")
         x_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
-        ttk.Label(x_card, text="X-Axis Position", font=("Cambria", 9, "bold"), background="white", foreground="#605e5c").pack(pady=(5, 0))
+        self.lbl_x_axis_position = ttk.Label(x_card, text=tr("motion_x_axis_position"), font=("Cambria", 9, "bold"), background="white", foreground="#605e5c")
+        self.lbl_x_axis_position.pack(pady=(5, 0))
         self.lbl_x_pulse = ttk.Label(x_card, textvariable=self.x_pulse_var, font=("Cambria", 16, "bold"), background="white", foreground="#0078d4")
         self.lbl_x_pulse.pack(pady=5)
-        ttk.Button(x_card, text="Refresh", command=lambda: self.on_get_pulse("X-Axis", "X-Axis Motor")).pack(pady=(0, 5))
+        self.btn_x_refresh = ttk.Button(x_card, text=tr("motion_refresh"), command=lambda: self.on_get_pulse("X-Axis", "X-Axis Motor"))
+        self.btn_x_refresh.pack(pady=(0, 5))
 
         # Y轴脉冲卡片
         y_card = tk.Frame(pulse_display_row, bg="white", highlightthickness=1, highlightbackground="#edebe9")
         y_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        ttk.Label(y_card, text="Y-Axis Position", font=("Cambria", 9, "bold"), background="white", foreground="#605e5c").pack(pady=(5, 0))
+        self.lbl_y_axis_position = ttk.Label(y_card, text=tr("motion_y_axis_position"), font=("Cambria", 9, "bold"), background="white", foreground="#605e5c")
+        self.lbl_y_axis_position.pack(pady=(5, 0))
         self.lbl_y_pulse = ttk.Label(y_card, textvariable=self.y_pulse_var, font=("Cambria", 16, "bold"), background="white", foreground="#0078d4")
         self.lbl_y_pulse.pack(pady=5)
-        ttk.Button(y_card, text="Refresh", command=lambda: self.on_get_pulse("Y-Axis", "Y-Axis Motor")).pack(pady=(0, 5))
+        self.btn_y_refresh = ttk.Button(y_card, text=tr("motion_refresh"), command=lambda: self.on_get_pulse("Y-Axis", "Y-Axis Motor"))
+        self.btn_y_refresh.pack(pady=(0, 5))
 
         # --- 底部：测试键绑定区域 (Test Key Binding Area) ---
-        self.binding_frame = ttk.LabelFrame(self, text="Key Bindings & Positions", padding=15)
+        self.binding_frame = ttk.LabelFrame(self, text=tr("motion_key_binding"), padding=15)
         self.binding_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
         # 工具栏
         binding_toolbar = ttk.Frame(self.binding_frame)
         binding_toolbar.pack(fill=tk.X, pady=(0, 10))
 
-        self.btn_add_binding = ttk.Button(binding_toolbar, text="+ Add New Binding", style="Primary.TButton", command=self.on_add_binding)
+        self.btn_add_binding = ttk.Button(binding_toolbar, text=tr("motion_add_binding"), style="Primary.TButton", command=self.on_add_binding)
         self.btn_add_binding.pack(side=tk.LEFT)
 
-        ttk.Label(binding_toolbar, text="Manage key positions for automated testing", font=("Cambria", 9), foreground="#605e5c").pack(side=tk.LEFT, padx=15)
+        self.lbl_binding_hint = ttk.Label(binding_toolbar, text=tr("motion_binding_hint"), font=("Cambria", 9), foreground="#605e5c")
+        self.lbl_binding_hint.pack(side=tk.LEFT, padx=15)
 
         # 已绑定按键显示区域
         binding_container = ttk.Frame(self.binding_frame, style="Card.TFrame")
@@ -310,6 +317,9 @@ class MotionControlFrame(ttk.Frame):
                     self.log(f"Failed to set origin for {axis_name}", "ERR")
             else:
                 self.log(f"Error: {serial_key} serial port not open", "ERR")
+        
+        # 设置原点后刷新位置显示（延迟 200ms 等待电机响应）
+        self.after(200, self.refresh_positions)
 
     def on_return_to_origin(self):
         """
@@ -331,6 +341,9 @@ class MotionControlFrame(ttk.Frame):
                     self.log(f"Failed to send return to origin command for {axis_name}", "ERR")
             else:
                 self.log(f"Error: {serial_key} serial port not open", "ERR")
+        
+        # 回到原点后延迟刷新位置（回到原点需要较长时间）
+        self.after(3000, self.refresh_positions)
 
     def on_get_homing_speed(self):
         """
@@ -429,6 +442,33 @@ class MotionControlFrame(ttk.Frame):
             self.log(f"Error: {serial_key} serial port not open", "ERR")
             return
 
+        self.query_pulse_count_internal(axis_name, serial_key, serial_conn)
+
+    def refresh_positions(self):
+        """
+        刷新 X 轴和 Y 轴的脉冲位置显示。
+        用于程序启动、设置原点、电机运行结束后自动更新位置。
+        """
+        axes = [
+            ("X-Axis", "X-Axis Motor"),
+            ("Y-Axis", "Y-Axis Motor")
+        ]
+        
+        for axis_name, serial_key in axes:
+            serial_conn = self.get_serial_connection(serial_key)
+            if serial_conn:
+                self.query_pulse_count_internal(axis_name, serial_key, serial_conn, silent=True)
+
+    def query_pulse_count_internal(self, axis_name, serial_key, serial_conn, silent=False):
+        """
+        内部方法：查询并更新脉冲数显示。
+
+        :param axis_name: 轴名称 ("X-Axis" 或 "Y-Axis")
+        :param serial_key: 串口键名 ("X-Axis Motor" 或 "Y-Axis Motor")
+        :param serial_conn: 串口连接对象
+        :param silent: 是否静默模式（不显示详细日志）
+        """
+
         try:
             port_info = self.get_serial_port_info(serial_conn, serial_key)
 
@@ -444,19 +484,21 @@ class MotionControlFrame(ttk.Frame):
 
             # 发送命令
             serial_conn.write(command)
-            hex_str = ' '.join([f'{b:02X}' for b in command])
-            self.log(f"{port_info} TX: [{hex_str}] Query Pulse Count", "MOT")
+            if not silent:
+                hex_str = ' '.join([f'{b:02X}' for b in command])
+                self.log(f"{port_info} TX: [{hex_str}] Query Pulse Count", "MOT")
 
             # 等待接收回复（读命令回复通常是9字节：地址+功能码+字节数+4字节数据+2字节CRC）
             response = self.wait_for_response(serial_conn, expected_length=9, timeout=0.5)
 
             if response and len(response) >= 9:
-                resp_hex = ' '.join([f'{b:02X}' for b in response])
                 # 解析回复：第2字节是数据字节数(0x04)，第3-6字节是脉冲数据(4字节，大端模式，有符号)
                 pulse_count_unsigned = (response[3] << 24) | (response[4] << 16) | (response[5] << 8) | response[6]
                 # 将有符号数转换为Python整数（32位有符号）
                 pulse_count = pulse_count_unsigned if pulse_count_unsigned < 0x80000000 else pulse_count_unsigned - 0x100000000
-                self.log(f"{port_info} RX: [{resp_hex}] Pulse Count = {pulse_count}", "MOT")
+                if not silent:
+                    resp_hex = ' '.join([f'{b:02X}' for b in response])
+                    self.log(f"{port_info} RX: [{resp_hex}] Pulse Count = {pulse_count}", "MOT")
                 
                 # 更新界面显示
                 if axis_name == "X-Axis":
@@ -464,10 +506,12 @@ class MotionControlFrame(ttk.Frame):
                 elif axis_name == "Y-Axis":
                     self.y_pulse_var.set(str(pulse_count))
             else:
-                self.log(f"{port_info} RX: [Timeout - No response received]", "ERR")
+                if not silent:
+                    self.log(f"{port_info} RX: [Timeout - No response received]", "ERR")
 
         except Exception as e:
-            self.log(f"Error querying pulse count for {axis_name}: {e}", "ERR")
+            if not silent:
+                self.log(f"Error querying pulse count for {axis_name}: {e}", "ERR")
 
     def execute_single_step(self, direction):
         """
@@ -499,6 +543,9 @@ class MotionControlFrame(ttk.Frame):
             return
 
         self.log(f"Single step executed: {direction} ({axis_name}), revolutions=1", "MOT")
+        
+        # 单步运动后延迟刷新位置（1圈大约需要 0.5-2 秒，取决于速度设置）
+        self.after(2000, self.refresh_positions)
 
     def start_continuous_motion(self, direction):
         """
@@ -548,6 +595,8 @@ class MotionControlFrame(ttk.Frame):
         # 发送停止命令，等待回复
         if self.send_command_and_wait_response(serial_conn, serial_key, 0x03, 1):
             self.log(f"Motion stopped ({axis_name})", "MOT")
+            # 停止后刷新位置
+            self.after(200, self.refresh_positions)
         else:
             self.log(f"Failed to stop {axis_name} motion", "ERR")
 
@@ -937,6 +986,11 @@ class MotionControlFrame(ttk.Frame):
             item_data['btn_select'].pack_forget()
             item_data['btn_select'] = None
         
+        # 移除取消按钮
+        if item_data['btn_cancel']:
+            item_data['btn_cancel'].pack_forget()
+            item_data['btn_cancel'] = None
+        
         # 保存到配置文件
         self.key_manager.add_binding(key_name, item_data['x_pulse'], item_data['y_pulse'])
         
@@ -996,3 +1050,27 @@ class MotionControlFrame(ttk.Frame):
         
         # 更新滚动区域
         self._on_binding_frame_configure(None)
+    
+    def refresh_texts(self):
+        """刷新界面文本（语言切换时调用）"""
+        # 更新按钮文本
+        self.btn_set_origin.config(text=tr("motion_set_origin"))
+        self.btn_return_origin.config(text=tr("motion_return_origin"))
+        self.btn_add_binding.config(text=tr("motion_add_binding"))
+        self.btn_up.config(text=tr("motion_up"))
+        self.btn_left.config(text=tr("motion_left"))
+        self.btn_down.config(text=tr("motion_down"))
+        self.btn_right.config(text=tr("motion_right"))
+        
+        # 更新 LabelFrame 标题
+        self.binding_frame.config(text=tr("motion_key_binding"))
+        self.control_frame.config(text=tr("motion_manual_control"))
+        self.coord_frame.config(text=tr("motion_coordinate_system"))
+        
+        # 更新坐标系区域文本
+        self.lbl_homing_speed.config(text=tr("motion_homing_speed"))
+        self.lbl_x_axis_position.config(text=tr("motion_x_axis_position"))
+        self.lbl_y_axis_position.config(text=tr("motion_y_axis_position"))
+        self.btn_x_refresh.config(text=tr("motion_refresh"))
+        self.btn_y_refresh.config(text=tr("motion_refresh"))
+        self.lbl_binding_hint.config(text=tr("motion_binding_hint"))
