@@ -145,7 +145,9 @@ class LanguageManager:
             "test_paused": {"zh": "II 已暂停", "en": "II PAUSED"},
             "test_standby": {"zh": "待机", "en": "STANDBY"},
             "test_resume": {"zh": "继续", "en": "Resume"},
-            
+            "test_item": {"zh": "项目", "en": "Item"},
+            "test_counts": {"zh": "次", "en": "Counts"},
+
             # === 日志页面 ===
             "log_title": {"zh": "日志", "en": "Logs"},
             "log_filter": {"zh": "筛选", "en": "Filter"},

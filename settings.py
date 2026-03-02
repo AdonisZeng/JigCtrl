@@ -107,17 +107,18 @@ class SerialConfigFrame(ttk.LabelFrame):
     SerialConfigFrame 类：通用的串口配置子组件，继承自 ttk.LabelFrame。
     包含端口选择、波特率配置及打开/关闭逻辑。简化了数据位、停止位和校验位（默认为 8-N-1）。
     """
-    def __init__(self, master, title, on_change_callback, port_manager, log_callback, on_connect_callback=None):
+    def __init__(self, master, title_key, on_change_callback, port_manager, log_callback, on_connect_callback=None):
         """
         参数:
             master: 父级容器
-            title: 标签框架的标题
+            title_key: 标签框架标题的翻译键名
             on_change_callback: 配置改变时的回调函数（用于更新"应用"按钮状态）
             port_manager: 端口管理器实例，用于检查端口冲突
             log_callback: 日志记录回调函数
             on_connect_callback: 串口连接成功后的回调函数（可选）
         """
-        super().__init__(master, text=title, padding=15)
+        self.title_key = title_key
+        super().__init__(master, text=tr(title_key), padding=15)
         self.on_change = on_change_callback
         self.port_manager = port_manager
         self.log = log_callback
@@ -130,6 +131,9 @@ class SerialConfigFrame(ttk.LabelFrame):
         self.stop_bits_var = tk.DoubleVar(value=1)
         self.parity_var = tk.StringVar(value='None')
         
+        # 保存标签引用以便刷新
+        self.labels = {}
+        
         self.create_widgets()
 
     def create_widgets(self):
@@ -140,7 +144,8 @@ class SerialConfigFrame(ttk.LabelFrame):
         self.columnconfigure(1, weight=1)
 
         # 1. 端口选择 (Port Selection)
-        ttk.Label(self, text=tr("settings_port_label")).grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        self.labels['port'] = ttk.Label(self, text=tr("settings_port_label"))
+        self.labels['port'].grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
         self.port_var = tk.StringVar()
         self.port_combo = ttk.Combobox(self, textvariable=self.port_var, state="readonly")
         self.port_combo.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
@@ -150,7 +155,8 @@ class SerialConfigFrame(ttk.LabelFrame):
         self.port_combo.bind('<Button-1>', self.refresh_ports) 
 
         # 2. 波特率 (Baud Rate)
-        ttk.Label(self, text=tr("settings_baud_label")).grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.labels['baud'] = ttk.Label(self, text=tr("settings_baud_label"))
+        self.labels['baud'].grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
         self.baud_var = tk.IntVar(value=9600)
         self.baud_combo = ttk.Combobox(self, textvariable=self.baud_var, values=[9600, 19200, 38400, 115200], state="readonly")
         self.baud_combo.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=5)
@@ -239,6 +245,23 @@ class SerialConfigFrame(ttk.LabelFrame):
         self.port_combo.config(state=state)
         self.baud_combo.config(state=state)
 
+    def refresh_texts(self):
+        """
+        刷新界面文本（语言切换时调用）。
+        """
+        # 刷新 LabelFrame 标题
+        self.config(text=tr(self.title_key))
+        
+        # 刷新标签文本
+        self.labels['port'].config(text=tr("settings_port_label"))
+        self.labels['baud'].config(text=tr("settings_baud_label"))
+        
+        # 刷新按钮文本
+        if self.is_open:
+            self.btn_open.config(text=tr("settings_close_port"))
+        else:
+            self.btn_open.config(text=tr("settings_open_port"))
+
     def get_settings(self):
         """获取当前组件的配置字典"""
         return {
@@ -317,14 +340,14 @@ class SettingsFrame(ttk.Frame):
         serial_container.pack(fill=tk.X, pady=(0, 10))
 
         self.serial_frames = {}
-        # 定义串口配置标题映射
+        # 定义串口配置标题映射（使用翻译键）
         serial_titles = [
-            ("X-Axis Motor", tr("settings_x_motor_title")),
-            ("Y-Axis Motor", tr("settings_y_motor_title")),
-            ("Relay (Solenoid)", tr("settings_relay_title"))
+            ("X-Axis Motor", "settings_x_motor_title"),
+            ("Y-Axis Motor", "settings_y_motor_title"),
+            ("Relay (Solenoid)", "settings_relay_title")
         ]
         
-        for idx, (key, title) in enumerate(serial_titles):
+        for idx, (key, title_key) in enumerate(serial_titles):
             # 使用包装框架以便更好控制 padding
             wrapper = ttk.Frame(serial_container)
             wrapper.grid(row=0, column=idx, padx=5, sticky=tk.NSEW)
@@ -335,7 +358,7 @@ class SettingsFrame(ttk.Frame):
             if key in ["X-Axis Motor", "Y-Axis Motor"] and self.on_motor_connect_callback:
                 on_connect = self.on_motor_connect_callback
             
-            frame = SerialConfigFrame(wrapper, title, self.check_changes, self.port_manager, self.log, on_connect)
+            frame = SerialConfigFrame(wrapper, title_key, self.check_changes, self.port_manager, self.log, on_connect)
             frame.pack(fill=tk.BOTH, expand=True)
             self.serial_frames[key] = frame
 
@@ -346,20 +369,23 @@ class SettingsFrame(ttk.Frame):
         # 标题栏
         press_title_bar = tk.Frame(press_card, bg="#f8f9fa")
         press_title_bar.pack(fill=tk.X)
-        tk.Label(press_title_bar, text=tr("settings_press"), font=("Cambria", 10, "bold"), bg="#f8f9fa", fg="#323130").pack(side=tk.LEFT, padx=15, pady=8)
+        self.press_title_label = tk.Label(press_title_bar, text=tr("settings_press"), font=("Cambria", 10, "bold"), bg="#f8f9fa", fg="#323130")
+        self.press_title_label.pack(side=tk.LEFT, padx=15, pady=8)
 
         # 输入区域
         press_inner = tk.Frame(press_card, bg="white", padx=20, pady=15)
         press_inner.pack(fill=tk.X)
 
         # Press Duration
-        tk.Label(press_inner, text=tr("settings_press_duration"), font=("Cambria", 9), bg="white", fg="#605e5c").grid(row=0, column=0, padx=(0, 10), pady=5, sticky=tk.W)
+        self.press_duration_label = tk.Label(press_inner, text=tr("settings_press_duration"), font=("Cambria", 9), bg="white", fg="#605e5c")
+        self.press_duration_label.grid(row=0, column=0, padx=(0, 10), pady=5, sticky=tk.W)
         self.vars['press_duration'] = tk.IntVar(value=100)
         ttk.Entry(press_inner, textvariable=self.vars['press_duration'], width=15).grid(row=0, column=1, padx=(0, 20), pady=5)
         self.vars['press_duration'].trace_add("write", lambda *args: self.check_changes())
 
         # Interval
-        tk.Label(press_inner, text=tr("settings_interval"), font=("Cambria", 9), bg="white", fg="#605e5c").grid(row=0, column=2, padx=(0, 10), pady=5, sticky=tk.W)
+        self.press_interval_label = tk.Label(press_inner, text=tr("settings_interval"), font=("Cambria", 9), bg="white", fg="#605e5c")
+        self.press_interval_label.grid(row=0, column=2, padx=(0, 10), pady=5, sticky=tk.W)
         self.vars['press_interval'] = tk.IntVar(value=500)
         ttk.Entry(press_inner, textvariable=self.vars['press_interval'], width=15).grid(row=0, column=3, padx=(0, 20), pady=5)
         self.vars['press_interval'].trace_add("write", lambda *args: self.check_changes())
@@ -371,7 +397,8 @@ class SettingsFrame(ttk.Frame):
         # 标题栏
         flow_title_bar = tk.Frame(flow_card, bg="#f8f9fa")
         flow_title_bar.pack(fill=tk.X)
-        tk.Label(flow_title_bar, text=tr("settings_test_flow"), font=("Cambria", 10, "bold"), bg="#f8f9fa", fg="#323130").pack(side=tk.LEFT, padx=15, pady=8)
+        self.flow_title_label = tk.Label(flow_title_bar, text=tr("settings_test_flow"), font=("Cambria", 10, "bold"), bg="#f8f9fa", fg="#323130")
+        self.flow_title_label.pack(side=tk.LEFT, padx=15, pady=8)
 
         # 控制栏
         ctrl_frame = tk.Frame(flow_card, bg="white", padx=15, pady=10)
@@ -766,3 +793,27 @@ class SettingsFrame(ttk.Frame):
         if title in self.serial_frames:
             return self.serial_frames[title].get_serial_connection()
         return None
+
+    def refresh_texts(self):
+        """
+        刷新界面文本（语言切换时调用）。
+        """
+        # 刷新串口配置框架
+        for frame in self.serial_frames.values():
+            if hasattr(frame, 'refresh_texts'):
+                frame.refresh_texts()
+        
+        # 刷新按压参数区域
+        self.press_title_label.config(text=tr("settings_press"))
+        self.press_duration_label.config(text=tr("settings_press_duration"))
+        self.press_interval_label.config(text=tr("settings_interval"))
+        
+        # 刷新测试流程区域
+        self.flow_title_label.config(text=tr("settings_test_flow"))
+        self.btn_add.config(text=tr("settings_add_item"))
+        self.btn_clear.config(text=tr("settings_clear_all"))
+        self.btn_next.config(text=tr("settings_next_item"))
+        self.btn_apply.config(text=tr("settings_apply"))
+        
+        # 刷新测试流程显示
+        self.render_test_flow()

@@ -53,11 +53,11 @@ class TestControlFrame(ttk.Frame):
         """创建并布局测试控制界面的所有组件"""
         
         # --- 状态监控显示区 ---
-        status_frame = ttk.LabelFrame(self, text=tr("test_status_monitor"), padding=30)
-        status_frame.pack(fill=tk.X, pady=10)
+        self.status_frame = ttk.LabelFrame(self, text=tr("test_status_monitor"), padding=30)
+        self.status_frame.pack(fill=tk.X, pady=10)
 
         # 使用一个容器来居中显示内容
-        monitor_container = ttk.Frame(status_frame)
+        monitor_container = ttk.Frame(self.status_frame)
         monitor_container.pack(expand=True)
 
         # 当前运行状态标签
@@ -301,9 +301,9 @@ class TestControlFrame(ttk.Frame):
         if mode == 'time':
             m, s = divmod(self.remaining_seconds, 60)
             h, m = divmod(m, 60)
-            self.lbl_remaining.config(text=f"Item {self.current_item_index+1}: {h:02d}:{m:02d}:{s:02d}")
+            self.lbl_remaining.config(text=f"{tr('test_item')} {self.current_item_index+1}: {h:02d}:{m:02d}:{s:02d}")
         else:
-            self.lbl_remaining.config(text=f"Item {self.current_item_index+1}: {self.remaining_counts} Counts")
+            self.lbl_remaining.config(text=f"{tr('test_item')} {self.current_item_index+1}: {self.remaining_counts} {tr('test_counts')}")
 
     def run_timer_async(self):
         """异步更新时间"""
@@ -515,12 +515,15 @@ class TestControlFrame(ttk.Frame):
     
     def refresh_texts(self):
         """刷新界面文本（语言切换时调用）"""
+        # 更新 LabelFrame 标题
+        self.status_frame.config(text=tr("test_status_monitor"))
+
         # 更新按钮文本
         self.btn_start.config(text=tr("test_start"))
         self.btn_pause.config(text=tr("test_pause"))
         self.btn_skip.config(text=tr("test_skip"))
         self.btn_stop.config(text=tr("test_stop"))
-        
+
         # 更新状态标签
         if self.is_running and not self.is_paused:
             self.lbl_status.config(text=tr("test_testing"))
@@ -528,3 +531,7 @@ class TestControlFrame(ttk.Frame):
             self.lbl_status.config(text=tr("test_paused"))
         else:
             self.lbl_status.config(text=tr("test_current_state"))
+
+        # 更新剩余显示（仅在待机状态下更新，运行中由其他逻辑控制）
+        if not self.is_running:
+            self.lbl_remaining.config(text=tr("test_remaining") + ": --")

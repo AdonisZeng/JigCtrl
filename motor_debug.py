@@ -67,28 +67,30 @@ class MotorDebugFrame(ttk.Frame):
 
     def create_serial_config(self, parent):
         """创建串口配置区域"""
-        serial_frame = ttk.LabelFrame(parent, text=tr("debug_serial_connection"), padding=15)
-        serial_frame.pack(fill=tk.X, pady=5)
+        self.serial_frame = ttk.LabelFrame(parent, text=tr("debug_serial_connection"), padding=15)
+        self.serial_frame.pack(fill=tk.X, pady=5)
 
-        grid_frame = ttk.Frame(serial_frame)
+        grid_frame = ttk.Frame(self.serial_frame)
         grid_frame.pack(fill=tk.X)
         grid_frame.columnconfigure(1, weight=1)
 
         # 端口选择
-        ttk.Label(grid_frame, text=tr("debug_port_label")).grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.lbl_port = ttk.Label(grid_frame, text=tr("debug_port_label"))
+        self.lbl_port.grid(row=0, column=0, sticky=tk.W, pady=5)
         self.port_var = tk.StringVar()
         self.port_combo = ttk.Combobox(grid_frame, textvariable=self.port_var, state="readonly")
         self.port_combo.grid(row=0, column=1, sticky=tk.EW, padx=10, pady=5)
         self.port_combo.bind('<Button-1>', self.refresh_ports)
 
         # 波特率
-        ttk.Label(grid_frame, text=tr("debug_baud_label")).grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.lbl_baud = ttk.Label(grid_frame, text=tr("debug_baud_label"))
+        self.lbl_baud.grid(row=1, column=0, sticky=tk.W, pady=5)
         self.baud_var = tk.IntVar(value=9600)
         ttk.Combobox(grid_frame, textvariable=self.baud_var,
                      values=[9600, 19200, 38400, 115200], state="readonly").grid(row=1, column=1, sticky=tk.EW, padx=10, pady=5)
 
         # 控制按钮
-        btn_frame = ttk.Frame(serial_frame)
+        btn_frame = ttk.Frame(self.serial_frame)
         btn_frame.pack(fill=tk.X, pady=(10, 0))
 
         self.btn_open = ttk.Button(btn_frame, text=tr("debug_open_port"), style="Primary.TButton", command=self.toggle_port)
@@ -108,94 +110,119 @@ class MotorDebugFrame(ttk.Frame):
         # 1. 运行控制 (Row 1)
         row1 = ttk.Frame(self.quick_frame)
         row1.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(row1, text=tr("debug_run_btn"), width=8, command=lambda: self.send_quick_command(0x02, 1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text=tr("debug_pause_btn"), width=8, command=lambda: self.send_quick_command(0x02, 0)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text=tr("debug_stop_btn"), width=8, style="Danger.TButton", command=lambda: self.send_quick_command(0x03, 1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(row1, text=tr("debug_status_btn"), width=8, command=lambda: self.send_query_command(0x02)).pack(side=tk.RIGHT, padx=2)
+
+        self.btn_run = ttk.Button(row1, text=tr("debug_run_btn"), width=8, command=lambda: self.send_quick_command(0x02, 1))
+        self.btn_run.pack(side=tk.LEFT, padx=2)
+        self.btn_pause = ttk.Button(row1, text=tr("debug_pause_btn"), width=8, command=lambda: self.send_quick_command(0x02, 0))
+        self.btn_pause.pack(side=tk.LEFT, padx=2)
+        self.btn_stop = ttk.Button(row1, text=tr("debug_stop_btn"), width=8, style="Danger.TButton", command=lambda: self.send_quick_command(0x03, 1))
+        self.btn_stop.pack(side=tk.LEFT, padx=2)
+        self.btn_status = ttk.Button(row1, text=tr("debug_status_btn"), width=8, command=lambda: self.send_query_command(0x02))
+        self.btn_status.pack(side=tk.RIGHT, padx=2)
 
         # 2. 速度和方向 (Row 2)
         row2 = ttk.Frame(self.quick_frame)
         row2.pack(fill=tk.X, pady=10)
-        
-        ttk.Label(row2, text=tr("debug_speed_label")).pack(side=tk.LEFT)
+
+        self.lbl_speed = ttk.Label(row2, text=tr("debug_speed_label"))
+        self.lbl_speed.pack(side=tk.LEFT)
         self.speed_var = tk.IntVar(value=100)
         ttk.Entry(row2, textvariable=self.speed_var, width=6).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=self.set_speed).pack(side=tk.LEFT)
-        
-        ttk.Label(row2, text=tr("debug_dir_label")).pack(side=tk.LEFT, padx=(15, 0))
+        self.btn_set_speed = ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=self.set_speed)
+        self.btn_set_speed.pack(side=tk.LEFT)
+
+        self.lbl_dir = ttk.Label(row2, text=tr("debug_dir_label"))
+        self.lbl_dir.pack(side=tk.LEFT, padx=(15, 0))
         self.dir_var = tk.IntVar(value=1)
         ttk.Combobox(row2, textvariable=self.dir_var, values=[0, 1], state="readonly", width=3).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x01, self.dir_var.get())).pack(side=tk.LEFT)
+        self.btn_set_dir = ttk.Button(row2, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x01, self.dir_var.get()))
+        self.btn_set_dir.pack(side=tk.LEFT)
 
         # 3. 行程设置 (Group)
         travel_frame = tk.Frame(self.quick_frame, bg="#f8f9fa", padx=10, pady=10, highlightthickness=1, highlightbackground="#edebe9")
         travel_frame.pack(fill=tk.X, pady=5)
-        
+
         # Revolutions
         rev_row = ttk.Frame(travel_frame)
         rev_row.pack(fill=tk.X, pady=2)
-        ttk.Label(rev_row, text=tr("debug_rev_label"), background="#f8f9fa").pack(side=tk.LEFT)
+        self.lbl_rev = ttk.Label(rev_row, text=tr("debug_rev_label"), background="#f8f9fa")
+        self.lbl_rev.pack(side=tk.LEFT)
         self.rev_var = tk.IntVar(value=1)
         ttk.Entry(rev_row, textvariable=self.rev_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
-        ttk.Button(rev_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x06, self.rev_var.get())).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(rev_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x06)).pack(side=tk.RIGHT, padx=2)
+        self.btn_set_rev = ttk.Button(rev_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x06, self.rev_var.get()))
+        self.btn_set_rev.pack(side=tk.RIGHT, padx=2)
+        self.btn_get_rev = ttk.Button(rev_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x06))
+        self.btn_get_rev.pack(side=tk.RIGHT, padx=2)
 
         # Angle
         angle_row = ttk.Frame(travel_frame)
         angle_row.pack(fill=tk.X, pady=2)
-        ttk.Label(angle_row, text=tr("debug_angle_label"), background="#f8f9fa").pack(side=tk.LEFT)
+        self.lbl_angle = ttk.Label(angle_row, text=tr("debug_angle_label"), background="#f8f9fa")
+        self.lbl_angle.pack(side=tk.LEFT)
         self.angle_var = tk.IntVar(value=0)
         ttk.Entry(angle_row, textvariable=self.angle_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
-        ttk.Button(angle_row, text=tr("debug_set_btn"), width=5, command=self.set_angle).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(angle_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x07)).pack(side=tk.RIGHT, padx=2)
+        self.btn_set_angle = ttk.Button(angle_row, text=tr("debug_set_btn"), width=5, command=self.set_angle)
+        self.btn_set_angle.pack(side=tk.RIGHT, padx=2)
+        self.btn_get_angle = ttk.Button(angle_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x07))
+        self.btn_get_angle.pack(side=tk.RIGHT, padx=2)
 
         # Pulse
         pulse_row = ttk.Frame(travel_frame)
         pulse_row.pack(fill=tk.X, pady=2)
-        ttk.Label(pulse_row, text=tr("debug_pulse_label"), background="#f8f9fa").pack(side=tk.LEFT)
+        self.lbl_pulse = ttk.Label(pulse_row, text=tr("debug_pulse_label"), background="#f8f9fa")
+        self.lbl_pulse.pack(side=tk.LEFT)
         self.pulse_var = tk.IntVar(value=0)
         ttk.Entry(pulse_row, textvariable=self.pulse_var, width=6, background="white").pack(side=tk.LEFT, padx=5)
-        ttk.Button(pulse_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x05, self.pulse_var.get())).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(pulse_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x05)).pack(side=tk.RIGHT, padx=2)
+        self.btn_set_pulse = ttk.Button(pulse_row, text=tr("debug_set_btn"), width=5, command=lambda: self.send_quick_command(0x05, self.pulse_var.get()))
+        self.btn_set_pulse.pack(side=tk.RIGHT, padx=2)
+        self.btn_get_pulse = ttk.Button(pulse_row, text=tr("debug_get_btn"), width=5, command=lambda: self.send_query_command(0x05))
+        self.btn_get_pulse.pack(side=tk.RIGHT, padx=2)
 
     def create_manual_command(self, parent):
         """创建手动指令输入区域"""
-        manual_frame = ttk.LabelFrame(parent, text=tr("debug_manual_hex"), padding=15)
-        manual_frame.pack(fill=tk.X, pady=5)
+        self.manual_frame = ttk.LabelFrame(parent, text=tr("debug_manual_hex"), padding=15)
+        self.manual_frame.pack(fill=tk.X, pady=5)
 
         self.cmd_var = tk.StringVar()
-        ttk.Entry(manual_frame, textvariable=self.cmd_var).pack(fill=tk.X, pady=(0, 10))
+        ttk.Entry(self.manual_frame, textvariable=self.cmd_var).pack(fill=tk.X, pady=(0, 10))
 
-        ex_frame = ttk.Frame(manual_frame)
+        ex_frame = ttk.Frame(self.manual_frame)
         ex_frame.pack(fill=tk.X)
-        ttk.Button(ex_frame, text=tr("debug_ex_run"), width=8, command=lambda: self.set_manual_cmd("01 06 00 02 00 01")).pack(side=tk.LEFT, padx=2)
-        ttk.Button(ex_frame, text=tr("debug_ex_stop"), width=8, command=lambda: self.set_manual_cmd("01 06 00 03 00 01")).pack(side=tk.LEFT, padx=2)
-        ttk.Button(ex_frame, text=tr("debug_ex_query"), width=8, command=lambda: self.set_manual_cmd("01 03 00 04 00 01")).pack(side=tk.LEFT, padx=2)
+        self.btn_ex_run = ttk.Button(ex_frame, text=tr("debug_ex_run"), width=8, command=lambda: self.set_manual_cmd("01 06 00 02 00 01"))
+        self.btn_ex_run.pack(side=tk.LEFT, padx=2)
+        self.btn_ex_stop = ttk.Button(ex_frame, text=tr("debug_ex_stop"), width=8, command=lambda: self.set_manual_cmd("01 06 00 03 00 01"))
+        self.btn_ex_stop.pack(side=tk.LEFT, padx=2)
+        self.btn_ex_query = ttk.Button(ex_frame, text=tr("debug_ex_query"), width=8, command=lambda: self.set_manual_cmd("01 03 00 04 00 01"))
+        self.btn_ex_query.pack(side=tk.LEFT, padx=2)
 
         # 发送按钮
-        ttk.Button(manual_frame, text=tr("debug_send"), style="Primary.TButton", command=self.send_manual_command).pack(fill=tk.X, pady=(15, 0))
+        self.btn_send = ttk.Button(self.manual_frame, text=tr("debug_send"), style="Primary.TButton", command=self.send_manual_command)
+        self.btn_send.pack(fill=tk.X, pady=(15, 0))
 
     def create_log_area(self, parent):
         """创建日志显示区域"""
-        log_frame = ttk.LabelFrame(parent, text=tr("debug_comm_log"), padding=15)
-        log_frame.pack(fill=tk.BOTH, expand=True)
+        self.log_frame = ttk.LabelFrame(parent, text=tr("debug_comm_log"), padding=15)
+        self.log_frame.pack(fill=tk.BOTH, expand=True)
 
         # 工具栏
-        toolbar = ttk.Frame(log_frame)
+        toolbar = ttk.Frame(self.log_frame)
         toolbar.pack(fill=tk.X, pady=(0, 10))
 
         # 显示选项
         self.show_hex_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(toolbar, text=tr("debug_hex"), variable=self.show_hex_var).pack(side=tk.LEFT, padx=5)
+        self.chk_hex = ttk.Checkbutton(toolbar, text=tr("debug_hex"), variable=self.show_hex_var)
+        self.chk_hex.pack(side=tk.LEFT, padx=5)
         self.show_ascii_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(toolbar, text=tr("debug_ascii"), variable=self.show_ascii_var).pack(side=tk.LEFT, padx=5)
+        self.chk_ascii = ttk.Checkbutton(toolbar, text=tr("debug_ascii"), variable=self.show_ascii_var)
+        self.chk_ascii.pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(toolbar, text=tr("debug_clear"), width=12, command=self.clear_log).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(toolbar, text=tr("debug_copy"), width=8, command=self.copy_selected).pack(side=tk.RIGHT, padx=5)
+        self.btn_clear = ttk.Button(toolbar, text=tr("debug_clear"), width=12, command=self.clear_log)
+        self.btn_clear.pack(side=tk.RIGHT, padx=5)
+        self.btn_copy = ttk.Button(toolbar, text=tr("debug_copy"), width=8, command=self.copy_selected)
+        self.btn_copy.pack(side=tk.RIGHT, padx=5)
 
         # 日志文本框
-        log_container = ttk.Frame(log_frame, style="Card.TFrame")
+        log_container = ttk.Frame(self.log_frame, style="Card.TFrame")
         log_container.pack(fill=tk.BOTH, expand=True)
 
         self.log_area = scrolledtext.ScrolledText(
@@ -671,10 +698,86 @@ class MotorDebugFrame(ttk.Frame):
     
     def refresh_texts(self):
         """刷新界面文本（语言切换时调用）"""
-        # 更新快速指令区域标题
+        # 更新 LabelFrame 标题
+        if hasattr(self, 'serial_frame'):
+            self.serial_frame.config(text=tr("debug_serial_connection"))
         if hasattr(self, 'quick_frame'):
             self.quick_frame.config(text=tr("debug_quick_commands"))
-        
+        if hasattr(self, 'manual_frame'):
+            self.manual_frame.config(text=tr("debug_manual_hex"))
+        if hasattr(self, 'log_frame'):
+            self.log_frame.config(text=tr("debug_comm_log"))
+
+        # 更新串口配置区域标签
+        if hasattr(self, 'lbl_port'):
+            self.lbl_port.config(text=tr("debug_port_label"))
+        if hasattr(self, 'lbl_baud'):
+            self.lbl_baud.config(text=tr("debug_baud_label"))
+
         # 更新按钮文本
         if hasattr(self, 'btn_open'):
             self.btn_open.config(text=tr("debug_close_port") if self.is_open else tr("debug_open_port"))
+        if hasattr(self, 'btn_get_all'):
+            self.btn_get_all.config(text=tr("debug_get_all_params"))
+
+        # 更新快速指令区域按钮
+        if hasattr(self, 'btn_run'):
+            self.btn_run.config(text=tr("debug_run_btn"))
+        if hasattr(self, 'btn_pause'):
+            self.btn_pause.config(text=tr("debug_pause_btn"))
+        if hasattr(self, 'btn_stop'):
+            self.btn_stop.config(text=tr("debug_stop_btn"))
+        if hasattr(self, 'btn_status'):
+            self.btn_status.config(text=tr("debug_status_btn"))
+
+        # 更新速度和方向区域
+        if hasattr(self, 'lbl_speed'):
+            self.lbl_speed.config(text=tr("debug_speed_label"))
+        if hasattr(self, 'btn_set_speed'):
+            self.btn_set_speed.config(text=tr("debug_set_btn"))
+        if hasattr(self, 'lbl_dir'):
+            self.lbl_dir.config(text=tr("debug_dir_label"))
+        if hasattr(self, 'btn_set_dir'):
+            self.btn_set_dir.config(text=tr("debug_set_btn"))
+
+        # 更新行程设置区域
+        if hasattr(self, 'lbl_rev'):
+            self.lbl_rev.config(text=tr("debug_rev_label"))
+        if hasattr(self, 'btn_set_rev'):
+            self.btn_set_rev.config(text=tr("debug_set_btn"))
+        if hasattr(self, 'btn_get_rev'):
+            self.btn_get_rev.config(text=tr("debug_get_btn"))
+
+        if hasattr(self, 'lbl_angle'):
+            self.lbl_angle.config(text=tr("debug_angle_label"))
+        if hasattr(self, 'btn_set_angle'):
+            self.btn_set_angle.config(text=tr("debug_set_btn"))
+        if hasattr(self, 'btn_get_angle'):
+            self.btn_get_angle.config(text=tr("debug_get_btn"))
+
+        if hasattr(self, 'lbl_pulse'):
+            self.lbl_pulse.config(text=tr("debug_pulse_label"))
+        if hasattr(self, 'btn_set_pulse'):
+            self.btn_set_pulse.config(text=tr("debug_set_btn"))
+        if hasattr(self, 'btn_get_pulse'):
+            self.btn_get_pulse.config(text=tr("debug_get_btn"))
+
+        # 更新手动指令区域
+        if hasattr(self, 'btn_ex_run'):
+            self.btn_ex_run.config(text=tr("debug_ex_run"))
+        if hasattr(self, 'btn_ex_stop'):
+            self.btn_ex_stop.config(text=tr("debug_ex_stop"))
+        if hasattr(self, 'btn_ex_query'):
+            self.btn_ex_query.config(text=tr("debug_ex_query"))
+        if hasattr(self, 'btn_send'):
+            self.btn_send.config(text=tr("debug_send"))
+
+        # 更新日志区域
+        if hasattr(self, 'chk_hex'):
+            self.chk_hex.config(text=tr("debug_hex"))
+        if hasattr(self, 'chk_ascii'):
+            self.chk_ascii.config(text=tr("debug_ascii"))
+        if hasattr(self, 'btn_clear'):
+            self.btn_clear.config(text=tr("debug_clear"))
+        if hasattr(self, 'btn_copy'):
+            self.btn_copy.config(text=tr("debug_copy"))
