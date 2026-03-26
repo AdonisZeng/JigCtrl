@@ -1,7 +1,0 @@
-- [x] language.py 包含所有界面文本的翻译
-- [x] motion.py 所有文本支持语言切换
-- [x] test_control.py 所有文本支持语言切换
-- [x] log.py 所有文本支持语言切换
-- [x] motor_debug.py 所有文本支持语言切换
-- [x] settings.py 所有文本支持语言切换
-- [x] 语言切换后所有界面文本正确更新

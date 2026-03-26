@@ -1,4 +1,0 @@
-- [x] language.py 包含串口配置标题的翻译
-- [x] SettingsFrame 使用翻译后的标题创建 SerialConfigFrame
-- [x] refresh_texts 方法更新串口配置框架标题
-- [x] 语言切换后串口配置标题正确更新
