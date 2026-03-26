@@ -281,11 +281,16 @@ class TestControlFrame(ttk.Frame):
                 self.send_motor_pulse(motor_x_conn, x_pulse, "X")
                 self.send_motor_pulse(motor_y_conn, y_pulse, "Y")
                 
-                # 等待电机移动（这里暂时用固定延时，实际可能需要查询状态）
-                # 在等待期间也要检查停止请求
-                for _ in range(20): # 2秒，每100ms检查一次
-                    if self.stop_requested or self.skip_item_requested: break
-                    time.sleep(0.1)
+                self.wait_for_motor_arrival(motor_x_conn, x_pulse, "X")
+                if self.stop_requested or self.skip_item_requested:
+                    if hasattr(self, 'motion_control') and self.motion_control:
+                        self.lbl_remaining.after(0, self.motion_control.refresh_positions)
+                    if self.stop_requested: break
+                    if self.skip_item_requested:
+                        self.skip_item_requested = False
+                        continue
+                
+                self.wait_for_motor_arrival(motor_y_conn, y_pulse, "Y")
                 
                 # 电机移动完成后刷新运动控制页面的位置显示
                 if hasattr(self, 'motion_control') and self.motion_control:
@@ -421,6 +426,7 @@ class TestControlFrame(ttk.Frame):
     def send_motor_pulse(self, conn, pulse, axis_name=""):
         """
         发送电机脉冲指令 (Modbus RTU)
+        支持分段移动，当脉冲数超过 65535 时自动拆分
         
         :param conn: 串口连接
         :param pulse: 目标脉冲数（绝对位置）
@@ -428,6 +434,8 @@ class TestControlFrame(ttk.Frame):
         """
         if not conn or not conn.is_open:
             return
+        
+        MAX_PULSE_PER_MOVE = 65000
         
         # 获取当前位置
         current_pulse = self.current_x_pulse if axis_name == "X" else self.current_y_pulse
@@ -444,46 +452,153 @@ class TestControlFrame(ttk.Frame):
         direction = 1 if delta > 0 else 0
         abs_delta = abs(delta)
         
-        # 检查脉冲数是否超过 16 位限制 (65535)
+        # 计算需要的分段数
         if abs_delta > 65535:
-            self.log(f"Motor {axis_name} Error: Pulse count {abs_delta} exceeds maximum (65535)", "ERR")
-            self.log(f"Motor {axis_name}: Consider using smaller coordinate values or multiple moves", "WRN")
-            return
+            segments = (abs_delta + MAX_PULSE_PER_MOVE - 1) // MAX_PULSE_PER_MOVE
+            self.log(f"Motor {axis_name}: Large move ({abs_delta} pulses), splitting into {segments} segments", "MOT")
         
         try:
-            # 1. 设置方向 (寄存器 0x01)
-            data = struct.pack('>BBHH', 0x01, 0x06, 0x01, direction)
-            crc = self.calculate_crc(data)
-            full_msg = data + struct.pack('<H', crc)
-            conn.write(full_msg)
-            direction_text = "CW" if direction == 1 else "CCW"
-            self.log(f"Motor {axis_name} Set Direction ({direction_text}): {full_msg.hex(' ').upper()}", "COM")
+            remaining = abs_delta
+            segment_num = 0
+            local_current = current_pulse
             
-            time.sleep(0.05)
-            
-            # 2. 设置脉冲数 (寄存器 0x05)
-            data = struct.pack('>BBHH', 0x01, 0x06, 0x05, abs_delta)
-            crc = self.calculate_crc(data)
-            full_msg = data + struct.pack('<H', crc)
-            conn.write(full_msg)
-            self.log(f"Motor {axis_name} Set Pulse ({abs_delta}): {full_msg.hex(' ').upper()}", "COM")
-            
-            # 3. 发送运行指令 (寄存器 0x02, 值 1)
-            time.sleep(0.05)
-            data = struct.pack('>BBHH', 0x01, 0x06, 0x02, 0x0001)
-            crc = self.calculate_crc(data)
-            full_msg = data + struct.pack('<H', crc)
-            conn.write(full_msg)
-            self.log(f"Motor {axis_name} Run: {full_msg.hex(' ').upper()}", "COM")
-            
-            # 更新当前位置
-            if axis_name == "X":
-                self.current_x_pulse = pulse
-            else:
-                self.current_y_pulse = pulse
+            while remaining > 0:
+                segment_num += 1
+                # 本次要移动的脉冲数
+                move_pulse = min(remaining, MAX_PULSE_PER_MOVE)
                 
+                # 设置方向（只在第一次设置）
+                if segment_num == 1:
+                    data = struct.pack('>BBHH', 0x01, 0x06, 0x01, direction)
+                    crc = self.calculate_crc(data)
+                    full_msg = data + struct.pack('<H', crc)
+                    conn.write(full_msg)
+                    direction_text = "CW" if direction == 1 else "CCW"
+                    self.log(f"Motor {axis_name} Set Direction ({direction_text}): {full_msg.hex(' ').upper()}", "COM")
+                    time.sleep(0.05)
+                
+                # 设置脉冲数 (寄存器 0x05)
+                data = struct.pack('>BBHH', 0x01, 0x06, 0x05, move_pulse)
+                crc = self.calculate_crc(data)
+                full_msg = data + struct.pack('<H', crc)
+                conn.write(full_msg)
+                self.log(f"Motor {axis_name} Segment {segment_num}: Set Pulse ({move_pulse}): {full_msg.hex(' ').upper()}", "COM")
+                
+                # 发送运行指令 (寄存器 0x02, 值 1)
+                time.sleep(0.05)
+                data = struct.pack('>BBHH', 0x01, 0x06, 0x02, 0x0001)
+                crc = self.calculate_crc(data)
+                full_msg = data + struct.pack('<H', crc)
+                conn.write(full_msg)
+                self.log(f"Motor {axis_name} Segment {segment_num}: Run", "COM")
+                
+                # 立即更新位置（预测值），供 wait_for_motor_arrival() 使用
+                if direction == 1:
+                    local_current += move_pulse
+                else:
+                    local_current -= move_pulse
+                
+                if axis_name == "X":
+                    self.current_x_pulse = local_current
+                else:
+                    self.current_y_pulse = local_current
+                
+                # 如果还有剩余脉冲，等待当前段移动完成后再发送下一段
+                remaining -= move_pulse
+                if remaining > 0:
+                    self.wait_for_segment_complete(conn, axis_name)
+            
         except Exception as e:
             self.log(f"Motor {axis_name} Command Error: {e}", "ERR")
+
+    def wait_for_segment_complete(self, conn, axis_name=""):
+        """
+        等待电机当前段移动完成
+        使用双重判断：运行状态(0x02) + 位置变化(0x18)
+        
+        :param conn: 串口连接
+        :param axis_name: 轴名称 ("X" 或 "Y")
+        """
+        if not conn or not conn.is_open:
+            return
+        
+        POLL_INTERVAL = 0.5
+        MAX_WAIT_TIME = 60
+        start_time = time.time()
+        last_position = None
+        stable_count = 0
+        
+        target_position = self.current_x_pulse if axis_name == "X" else self.current_y_pulse
+        
+        self.log(f"Motor {axis_name}: Waiting for segment to complete (target: {target_position})...", "MOT")
+        
+        while True:
+            if self.stop_requested or self.skip_item_requested:
+                self.log(f"Motor {axis_name}: Wait interrupted by stop/skip request", "MOT")
+                return
+            
+            elapsed = time.time() - start_time
+            if elapsed >= MAX_WAIT_TIME:
+                self.log(f"Motor {axis_name}: Segment wait timeout ({MAX_WAIT_TIME}s)", "WRN")
+                return
+            
+            try:
+                is_running = False
+                current_position = None
+                
+                conn.reset_input_buffer()
+                
+                time.sleep(0.5)
+                
+                data = struct.pack('>BBHH', 0x01, 0x03, 0x02, 0x01)
+                crc = self.calculate_crc(data)
+                full_msg = data + struct.pack('<H', crc)
+                conn.write(full_msg)
+                
+                time.sleep(0.3)
+                
+                if conn.in_waiting >= 7:
+                    response = conn.read(7)
+                    status = response[4]
+                    if status == 1:
+                        is_running = True
+                
+                time.sleep(0.2)
+                
+                conn.reset_input_buffer()
+                data = struct.pack('>BBHH', 0x01, 0x03, 0x18, 0x02)
+                crc = self.calculate_crc(data)
+                full_msg = data + struct.pack('<H', crc)
+                conn.write(full_msg)
+                
+                time.sleep(0.3)
+                
+                if conn.in_waiting >= 9:
+                    response = conn.read(9)
+                    current_position = int.from_bytes(response[3:7], 'big', signed=True)
+                    
+                    self.log(f"Motor {axis_name}: Position {current_position}, Target {target_position}, Running {is_running}", "MOT")
+                    
+                    if current_position == target_position:
+                        self.log(f"Motor {axis_name}: Segment complete", "MOT")
+                        return
+                    
+                    if last_position is not None and current_position == last_position and not is_running:
+                        stable_count += 1
+                        if stable_count >= 2:
+                            self.log(f"Motor {axis_name}: Segment complete (stable)", "MOT")
+                            return
+                    else:
+                        stable_count = 0
+                    
+                    last_position = current_position
+                else:
+                    self.log(f"Motor {axis_name}: No response from motor", "WRN")
+                    
+            except Exception as e:
+                self.log(f"Motor {axis_name} Segment Wait Error: {e}", "ERR")
+            
+            time.sleep(POLL_INTERVAL)
 
     def send_motor_stop(self, conn, axis_name=""):
         """
@@ -544,6 +659,62 @@ class TestControlFrame(ttk.Frame):
         except Exception as e:
             self.log(f"Motor {axis_name} Query Pulse Error: {e}", "ERR")
             return None
+
+    def wait_for_motor_arrival(self, conn, target_pulse, axis_name=""):
+        """
+        等待电机移动到目标位置
+        通过轮询读取寄存器 0x18 检测当前位置，直到到达目标或超时
+        
+        :param conn: 串口连接
+        :param target_pulse: 目标脉冲数
+        :param axis_name: 轴名称 ("X" 或 "Y")
+        """
+        if not conn or not conn.is_open:
+            return
+        
+        POLL_INTERVAL = 0.5
+        MAX_WAIT_TIME = 30
+        start_time = time.time()
+        
+        self.log(f"Motor {axis_name}: Waiting for arrival at target {target_pulse}...", "MOT")
+        
+        while True:
+            if self.stop_requested or self.skip_item_requested:
+                self.log(f"Motor {axis_name}: Wait interrupted by stop/skip request", "MOT")
+                return
+            
+            elapsed = time.time() - start_time
+            if elapsed >= MAX_WAIT_TIME:
+                self.log(f"Motor {axis_name}: Wait timeout ({MAX_WAIT_TIME}s) for target {target_pulse}", "WRN")
+                return
+            
+            try:
+                conn.reset_input_buffer()
+                
+                data = struct.pack('>BBHH', 0x01, 0x03, 0x18, 0x02)
+                crc = self.calculate_crc(data)
+                full_msg = data + struct.pack('<H', crc)
+                conn.write(full_msg)
+                
+                time.sleep(0.5)
+                
+                if conn.in_waiting >= 9:
+                    response = conn.read(9)
+                    current_pulse = int.from_bytes(response[3:7], 'big', signed=True)
+                    
+                    if current_pulse == target_pulse:
+                        self.log(f"Motor {axis_name}: Arrived at target {target_pulse}", "MOT")
+                        return
+                    else:
+                        remaining = abs(target_pulse - current_pulse)
+                        self.log(f"Motor {axis_name}: Moving... Position {current_pulse}, Target {target_pulse}, Remaining {remaining}", "MOT")
+                else:
+                    self.log(f"Motor {axis_name}: No response from motor", "WRN")
+                    
+            except Exception as e:
+                self.log(f"Motor {axis_name} Wait Error: {e}", "ERR")
+            
+            time.sleep(POLL_INTERVAL)
 
     def calculate_crc(self, data):
         """计算 Modbus CRC16"""
