@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 import datetime
-from language import tr
+from core.language import tr
 
 class LogFrame(ttk.Frame):
     """

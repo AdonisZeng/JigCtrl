@@ -1,0 +1,26 @@
+{
+    "loop_enabled": false,
+    "loop_count": 1,
+    "press_duration": 100,
+    "press_interval": 500,
+    "X-Axis Motor": {
+        "baud": 9600,
+        "data_bits": 8,
+        "stop_bits": 1,
+        "parity": "None"
+    },
+    "Y-Axis Motor": {
+        "baud": 9600,
+        "data_bits": 8,
+        "stop_bits": 1,
+        "parity": "None"
+    },
+    "Relay (Solenoid)": {
+        "baud": 9600,
+        "data_bits": 8,
+        "stop_bits": 1,
+        "parity": "None"
+    },
+    "test_flow": [],
+    "loop_locked": false
+}

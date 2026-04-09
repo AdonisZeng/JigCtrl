@@ -3,7 +3,7 @@ from tkinter import ttk, scrolledtext
 import serial
 import serial.tools.list_ports
 import struct
-from language import tr
+from core.language import tr
 
 
 class MotorDebugFrame(ttk.Frame):

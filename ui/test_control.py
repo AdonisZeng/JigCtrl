@@ -4,8 +4,8 @@ import datetime
 import time
 import threading
 import struct
-from key_manager import KeyManager
-from language import tr
+from core.key_manager import KeyManager
+from core.language import tr
 
 class TestControlFrame(ttk.Frame):
     """

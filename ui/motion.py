@@ -3,9 +3,9 @@ from tkinter import ttk
 import struct
 import threading
 import time
-from key_manager import KeyManager
-from key_selection_window import KeySelectionWindow
-from language import tr
+from core.key_manager import KeyManager
+from core.key_selection_window import KeySelectionWindow
+from core.language import tr
 
 
 class MotionControlFrame(ttk.Frame):

@@ -1,12 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
-from motion import MotionControlFrame
-from settings import SettingsFrame
-from test_control import TestControlFrame
-from log import LogFrame
-from motor_debug import MotorDebugFrame
-from utils import StatusBar, Tooltip
-from language import get_language_manager, tr
+from ui.motion import MotionControlFrame
+from ui.settings import SettingsFrame
+from ui.test_control import TestControlFrame
+from ui.log import LogFrame
+from ui.motor_debug import MotorDebugFrame
+from ui.utils import StatusBar, Tooltip
+from core.language import get_language_manager, tr
 
 class JigCtrlApp(tk.Tk):
     """

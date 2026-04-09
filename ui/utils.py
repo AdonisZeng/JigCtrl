@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import time
-from language import get_language_manager, tr
+from core.language import get_language_manager, tr
 
 
 class Tooltip:

@@ -3,10 +3,10 @@ from tkinter import ttk, messagebox
 import copy
 import serial
 import serial.tools.list_ports
-from config_manager import ConfigManager
-from key_manager import KeyManager
-from utils import HistoryManager
-from language import tr
+from core.config_manager import ConfigManager
+from core.key_manager import KeyManager
+from ui.utils import HistoryManager
+from core.language import tr
 
 # =========================================================================
 # 辅助类：测试项设置窗口 (TestItemSettingsWindow)

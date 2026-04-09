@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from key_manager import KeyManager
+from core.key_manager import KeyManager
 
 class KeySelectionWindow:
     """
